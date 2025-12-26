@@ -38,7 +38,6 @@ namespace WpfApp5.ViewModels
         public string FullDateTime => TimeService.FullDateTime; // 完整日期時間
         public string TradingTime => TimeService.TradingTime;   // 交易用時間格式
         public string FileNameTime => TimeService.FileNameTime; // 檔案名稱用時間格式
-
         #endregion
 
         #region 視窗與識別
