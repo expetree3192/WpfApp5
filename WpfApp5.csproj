@@ -1,0 +1,57 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+
+	<!-- 平台設定 -->
+	<RuntimeIdentifier>win-x64</RuntimeIdentifier>
+	<SelfContained>false</SelfContained>
+	<PublishSingleFile>false</PublishSingleFile>
+  
+	<!-- 改善 dynamic 類型支援 -->
+	<EmitCompilerGeneratedFiles>false</EmitCompilerGeneratedFiles>
+	<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  
+	<!-- 加入這些設定來改善 dynamic 支援 -->
+	<LangVersion>latest</LangVersion>
+	<WarningsAsErrors />
+	<TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+	<ApplicationIcon>flash-sale.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+	<DebugType>full</DebugType>
+	<Optimize>false</Optimize>
+	<DefineConstants>DEBUG;TRACE</DefineConstants>
+	<!-- 加入 dynamic 除錯支援 -->
+	<DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+	<DebugType>pdbonly</DebugType>
+	<Optimize>true</Optimize>
+	<DefineConstants>TRACE</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="flash-sale.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="HandyControl" Version="3.5.1" />
+    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="Serilog" Version="4.3.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="Shioaji" Version="1.1.8" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="9.0.10" />
+    <PackageReference Include="System.Reflection.Emit" Version="4.7.0" />
+  </ItemGroup>
+
+</Project>

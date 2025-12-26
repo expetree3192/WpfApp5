@@ -1,0 +1,201 @@
+﻿<Window x:Class="WpfApp5.MainWindow"
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:local="clr-namespace:WpfApp5"
+  xmlns:utils="clr-namespace:WpfApp5.Utils"
+  mc:Ignorable="d"
+  Title="Shioaji API Trading System" 
+  Height="800" Width="1200"
+  WindowStartupLocation="CenterScreen"
+  Background="{StaticResource DarkBackground}">
+
+    <Grid>
+        <TabControl Style="{StaticResource MainTabControlStyle}">
+
+            <!-- 🏠 系統主控台頁籤 -->
+            <TabItem Header="🏠 系統主控台" Style="{StaticResource MainTabItemStyle}">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300" MinWidth="280"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*" MinWidth="600"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 🔑 系統控制台區域 (左側 - 超緊湊版) -->
+                    <GroupBox Grid.Column="0" Header="🔑 系統控制台" 
+                        Foreground="White" BorderBrush="{StaticResource DarkBorder}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="3">
+                            <StackPanel Margin="3">
+
+                                <!-- 登入認證區塊 -->
+                                <Border Background="#2A2A2A" CornerRadius="5" Padding="8" Margin="0,0,0,8">
+                                    <StackPanel>
+                                        <TextBlock Text="🔐 登入認證" FontWeight="Bold" Foreground="White" FontSize="12" Margin="0,0,0,8"/>
+
+                                        <!-- API Key & Secret Key 同一行 -->
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="5"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
+                                            <Label Grid.Row="0" Grid.Column="0" Content="API Key:" Padding="0" FontSize="12" Height="16"/>
+                                            <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding ApiKey}" Height="22" FontSize="12"/>
+
+                                            <Label Grid.Row="0" Grid.Column="2" Content="Secret Key:" Padding="0" FontSize="12" Height="16"/>
+                                            <PasswordBox Grid.Row="1" Grid.Column="2" x:Name="SecretKeyBox" Height="22" FontSize="12"/>
+                                        </Grid>
+
+                                        <!-- 憑證路徑 & 憑證密碼 同一行 -->
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="5"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
+                                            <Label Grid.Row="0" Grid.Column="0" Content="CertPath:" Padding="0" FontSize="12" Height="16"/>
+                                            <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding CertPath}" Height="22" FontSize="12"/>
+
+                                            <Label Grid.Row="0" Grid.Column="2" Content="CertPassword:" Padding="0" FontSize="12" Height="16"/>
+                                            <PasswordBox Grid.Row="1" Grid.Column="2" x:Name="CertPasswordBox" Height="22" FontSize="12"/>
+                                        </Grid>
+
+                                        <!-- 身分證字號 & 模擬模式 同一行 -->
+                                        <Grid Margin="0,0,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="5"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
+                                            <Label Grid.Row="0" Grid.Column="0" Content="PersonId:" Padding="0" FontSize="12" Height="16"/>
+                                            <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding PersonId}" Height="22" FontSize="12"/>
+                                            <Label Grid.Row="0" Grid.Column="2" Content="Mode:" Padding="0" FontSize="12" Height="16"/>
+                                            <CheckBox Grid.Row="1" Grid.Column="2" Content="Simulation" IsChecked="{Binding SimulationMode}" FontSize="12" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 系統狀態區塊 -->
+                                <Border Background="#2A2A2A" CornerRadius="5" Padding="8" Margin="0,0,0,8">
+                                    <StackPanel>
+                                        <TextBlock Text="📊 系統狀態" FontWeight="Bold" Foreground="White" 
+             FontSize="12" Margin="0,0,0,6"/>
+
+                                        <!-- 連線狀態 -->
+                                        <StackPanel Margin="0,0,0,4">
+                                            <Label Content="連線狀態:" Padding="0" FontSize="12" Height="16"/>
+                                            <TextBlock Text="{Binding ConnectionStatus}" Foreground="{Binding IsLoggedIn, Converter={StaticResource BoolToTextConverter}, ConverterParameter=Lime|Orange}" FontWeight="Bold" FontSize="12" TextWrapping="Wrap"/>
+                                        </StackPanel>
+
+                                        <!-- 視窗統計 -->
+                                        <StackPanel Margin="0,0,0,0">
+                                            <Label Content="視窗統計:" Padding="0" FontSize="12" Height="16"/>
+                                            <TextBlock Text="{Binding WindowStats}" Foreground="Yellow" FontWeight="Bold" FontSize="12" TextWrapping="Wrap"/>
+                                        </StackPanel>
+
+                                        <!-- 加入顯示所有訂閱合約的按鈕 -->
+                                        <Button Content="顯示所有訂閱合約" Command="{Binding ShowAllUniqueSubscribedContractsCommand}" Margin="0,10,0,0" Height="30" FontWeight="Bold" FontSize="12"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 系統控制區塊 -->
+                                <Border Background="#2A2A2A" CornerRadius="5" Padding="8" Margin="0,0,0,8">
+                                    <StackPanel>
+                                        <TextBlock Text="⚙️ 系統控制" FontWeight="Bold" Foreground="White" FontSize="12" Margin="0,0,0,6"/>
+
+                                        <!-- 登入控制按鈕 -->
+                                        <Button Content="{Binding LoginButtonText}" 
+                                          Command="{Binding ToggleLoginCommand}"
+                                          IsEnabled="{Binding IsLoginInProgress, Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                                          Height="32" Margin="0,0,0,6" FontWeight="Bold" FontSize="11"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 視窗管理區塊 (登入後顯示) -->
+                                <Border Background="#2A2A2A" CornerRadius="5" Padding="8" Margin="0,0,0,8"
+                                  Visibility="{Binding IsLoggedIn, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <TextBlock Text="🪟 視窗管理" FontWeight="Bold" Foreground="White" FontSize="12" Margin="0,0,0,6"/>
+                                        <!-- 開啟視窗按鈕 -->
+                                        <Button Content="📊 開啟報價視窗" Command="{Binding OpenQuoteWindowCommand}" Height="30" Margin="0,0,0,4" FontWeight="Bold" FontSize="12"/>
+                                        <Button Content="🔍 合約搜尋" Command="{Binding OpenContractSearchWindowCommand}" Height="30" Margin="0,0,0,8" FontWeight="Bold" FontSize="12"/>
+                                        <!-- 關閉視窗按鈕 -->
+                                        <UniformGrid Columns="1" Rows="2">
+                                            <Button Content="❌ 關閉報價視窗" Command="{Binding CloseAllQuoteWindowsCommand}" Height="26" Margin="0,0,0,3" FontSize="12"/>
+                                            <Button Content="🗑️ 關閉所有視窗" Command="{Binding CloseAllWindowsCommand}" Height="26" Margin="0,0,0,0" FontSize="12"/>
+                                        </UniformGrid>
+                                    </StackPanel>
+                                </Border>
+
+                            </StackPanel>
+                        </ScrollViewer>
+                    </GroupBox>
+
+                    <!-- 分隔條 -->
+                    <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="{StaticResource DarkBorder}" ShowsPreview="True"/>
+
+                    <!-- 📋 系統日誌區域 (右側 - RichTextBox 版) -->
+                    <GroupBox Grid.Column="2" Header="📋 系統日誌" Foreground="White" BorderBrush="{StaticResource DarkBorder}">
+                        <Grid Margin="5">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- 日誌控制按鈕 -->
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,5">
+                                <Button Content="清除日誌" Command="{Binding ClearLogsCommand}" Width="80" Height="25" Margin="0,0,5,0"/>
+                                <Button Content="匯出日誌" Command="{Binding ExportLogsCommand}" Width="80" Height="25" Margin="0,0,5,0"/>
+                                <Button Content="切換Debug" Command="{Binding ToggleDebugOutputCommand}" Width="90" Height="25" Margin="0,0,5,0"/>
+                                <CheckBox Content="自動捲動" IsChecked="{Binding AutoScrollLogs}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                            </StackPanel>
+
+                            <!-- RichTextBox 日誌顯示區域 - 使用全局樣式 -->
+                            <RichTextBox Grid.Row="1" x:Name="LogRichTextBox" Style="{StaticResource LogRichTextBoxStyle}"/>
+                        </Grid>
+                    </GroupBox>
+                </Grid>
+            </TabItem>
+
+            <!-- 📊 交易監控頁籤 -->
+            <TabItem Header="📊 交易監控" Style="{StaticResource MainTabItemStyle}">
+                <Grid Margin="10">
+                    <TextBlock Text="交易監控功能開發中..." 
+                         HorizontalAlignment="Center" 
+                         VerticalAlignment="Center"
+                         FontSize="24" 
+                         Foreground="Gray"/>
+                </Grid>
+            </TabItem>
+
+            <!-- ⚙️ 系統設定頁籤 -->
+            <TabItem Header="⚙️ 系統設定" Style="{StaticResource MainTabItemStyle}">
+                <Grid Margin="10">
+                    <TextBlock Text="系統設定功能開發中..." 
+                         HorizontalAlignment="Center" 
+                         VerticalAlignment="Center"
+                         FontSize="24" 
+                         Foreground="Gray"/>
+                </Grid>
+            </TabItem>
+
+        </TabControl>
+    </Grid>
+</Window>

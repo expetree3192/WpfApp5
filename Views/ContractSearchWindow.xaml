@@ -1,0 +1,311 @@
+﻿<Window x:Class="WpfApp5.Views.ContractSearchWindow"
+xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+Title="🔍 商品檔查詢系統" 
+Height="700" Width="1200" 
+WindowStartupLocation="CenterOwner"
+ResizeMode="CanResize">
+
+    <Window.Resources>
+        <!-- 原有樣式定義保持不變 -->
+        <Style x:Key="HeaderTextStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#2C3E50"/>
+            <Setter Property="Margin" Value="5,2"/>
+        </Style>
+
+        <Style x:Key="InputControlStyle" TargetType="Control">
+            <Setter Property="Margin" Value="5,2"/>
+            <Setter Property="Height" Value="25"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="ButtonStyle" TargetType="Button">
+            <Setter Property="Margin" Value="5,2"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="MinWidth" Value="80"/>
+            <Setter Property="Background" Value="#3498DB"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style x:Key="CategoryButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonStyle}">
+            <Setter Property="Height" Value="35"/>
+            <Setter Property="MinWidth" Value="100"/>
+            <Setter Property="Margin" Value="2"/>
+        </Style>
+
+        <!-- 原有日誌區域樣式保持不變 -->
+        <Style x:Key="LogGroupBoxStyle" TargetType="GroupBox">
+            <Setter Property="Background" Value="#F8F9FA"/>
+            <Setter Property="BorderBrush" Value="#BDC3C7"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="5"/>
+        </Style>
+
+        <Style x:Key="LogTextBlockStyle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="9"/>
+            <Setter Property="Foreground" Value="#2C3E50"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Padding" Value="3"/>
+            <Setter Property="LineHeight" Value="14"/>
+        </Style>
+
+        <!-- 自訂 GroupBox 樣式保持不變 -->
+        <Style x:Key="CustomLogGroupBoxStyle" TargetType="GroupBox">
+            <Setter Property="Background" Value="#F8F9FA"/>
+            <Setter Property="BorderBrush" Value="#BDC3C7"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="5"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GroupBox">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0" 
+                              Background="{TemplateBinding Background}" 
+                              BorderBrush="{TemplateBinding BorderBrush}" 
+                              BorderThickness="{TemplateBinding BorderThickness}"
+                              CornerRadius="3,3,0,0">
+                                <Grid Margin="5,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <ContentPresenter Grid.Column="0" 
+                                                ContentSource="Header" 
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Left"/>
+
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                        <Button Name="ClearLogsButton" Content="🧹" ToolTip="清除日誌" Width="22" Height="18" FontSize="9" Background="#E74C3C" Foreground="White" BorderThickness="0" Margin="2,0" Click="ClearLogsButton_Click"/>
+                                        <Button Name="ScrollToBottomButton" Content="⬇️" ToolTip="滾動到底部" Width="22" Height="18" FontSize="9" Background="#3498DB" Foreground="White" BorderThickness="0" Margin="2,0" Click="ScrollToBottomButton_Click"/>
+                                        <Button Name="CopyLogsButton" Content="📋" ToolTip="複製日誌到剪貼簿" Width="22" Height="18" FontSize="9" Background="#27AE60" Foreground="White" BorderThickness="0" Margin="2,0" Click="CopyLogsButton_Click"/>
+                                        <TextBlock Text="即時" FontSize="9" Foreground="#7F8C8D" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <Border Grid.Row="1" 
+                              Background="{TemplateBinding Background}" 
+                              BorderBrush="{TemplateBinding BorderBrush}" 
+                              BorderThickness="1,0,1,1"
+                              CornerRadius="0,0,3,3">
+                                <ContentPresenter Margin="{TemplateBinding Padding}"/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <!-- 商品類型選擇區 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 查詢條件區 -->
+            <RowDefinition Height="*"/>
+            <!-- 查詢結果區 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 按鈕區 -->
+        </Grid.RowDefinitions>
+
+        <!-- 商品類型選擇區 - 保持不變 -->
+        <GroupBox Grid.Row="0" Header="📊 商品類型選擇" Margin="10,5">
+            <WrapPanel Orientation="Horizontal" Margin="10">
+                <Button Name="StocksButton" Content="🏢 股票" Style="{StaticResource CategoryButtonStyle}" Click="ProductType_Click" Tag="Stocks"/>
+                <Button Name="FuturesButton" Content="📈 期貨" Style="{StaticResource CategoryButtonStyle}" Click="ProductType_Click" Tag="Futures"/>
+                <Button Name="OptionsButton" Content="🎲 選擇權" Style="{StaticResource CategoryButtonStyle}" Click="ProductType_Click" Tag="Options"/>
+                <Button Name="IndexsButton" Content="📊 指數" Style="{StaticResource CategoryButtonStyle}" Click="ProductType_Click" Tag="Indexs"/>
+
+                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="10,0"/>
+                <Button Name="Test01Button" Content="🧪 測試01" Style="{StaticResource CategoryButtonStyle}" Click="Test01_Click" Background="Orange" Foreground="White"/>
+                <Button Name="Test02Button" Content="🧪 測試02" Style="{StaticResource CategoryButtonStyle}" Click="Test02_Click" Background="Orange" Foreground="White"/>
+            </WrapPanel>
+        </GroupBox>
+
+        <!-- 查詢條件區 - 保持不變 -->
+        <GroupBox Grid.Row="1" Header="🔍 查詢條件" Margin="10,5">
+            <Grid Margin="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="130"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="100"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="200"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- 第一行 -->
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="商品類型:" Style="{StaticResource HeaderTextStyle}"/>
+                <ComboBox Grid.Row="0" Grid.Column="1" Name="ProductTypeComboBox" Style="{StaticResource InputControlStyle}" SelectionChanged="ProductTypeComboBox_SelectionChanged">
+                    <ComboBoxItem Content="Stocks (股票)" Tag="Stocks"/>
+                    <ComboBoxItem Content="Futures (期貨)" Tag="Futures" IsSelected="True"/>
+                    <ComboBoxItem Content="Options (選擇權)" Tag="Options"/>
+                    <ComboBoxItem Content="Indexs (指數)" Tag="Indexs"/>
+                </ComboBox>
+
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="交易所:" Style="{StaticResource HeaderTextStyle}"/>
+                <ComboBox Grid.Row="0" Grid.Column="3" Name="ExchangeComboBox" Style="{StaticResource InputControlStyle}" IsEditable="True" Text="{Binding SelectedExchange, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding AvailableExchanges}" SelectedValue="{Binding SelectedExchange}">
+                </ComboBox>
+                <Button Grid.Row="0" Grid.Column="4" Name="QueryButton" Content="🔍 查詢商品檔" Style="{StaticResource ButtonStyle}" Click="QueryButton_Click" Background="#27AE60" HorizontalAlignment="Left"/>
+
+                <!-- 第二行 -->
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="商品代號:" Style="{StaticResource HeaderTextStyle}"/>
+                <TextBox Grid.Row="1" Grid.Column="1" Name="SymbolTextBox" Style="{StaticResource InputControlStyle}" Text="{Binding SubscribeSymbol, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="關鍵字:" Style="{StaticResource HeaderTextStyle}"/>
+                <TextBox Grid.Row="1" Grid.Column="3" Name="KeywordTextBox" Style="{StaticResource InputControlStyle}" Text="{Binding SearchKeyword, UpdateSourceTrigger=PropertyChanged}"/>
+                <Button Grid.Row="1" Grid.Column="4" Name="ClearButton" Content="🗑️ 清除條件" Style="{StaticResource ButtonStyle}" Click="ClearButton_Click" Background="#95A5A6" HorizontalAlignment="Left"/>
+
+                <!-- 第三行 - 個股期貨專用 -->
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="個股期貨:" Style="{StaticResource HeaderTextStyle}" Name="StockFuturesLabel" Visibility="Visible"/>
+                <StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="4" Orientation="Horizontal" Name="StockFuturesPanel" Visibility="Visible">
+                    <CheckBox Name="ShowAllMonthsCheckBox" Content="顯示所有月份" Margin="5,0,15,0" VerticalAlignment="Center" IsChecked="{Binding ShowAllMonths}"/>
+                    <CheckBox Name="ShowR1R2CheckBox" Content="含R1/R2連續月" Margin="5,0,15,0" VerticalAlignment="Center" IsChecked="{Binding ShowR1R2}"/>
+                    <TextBlock Text="常用:" VerticalAlignment="Center" Margin="10,0,5,0"/>
+                </StackPanel>
+
+                <!-- 日誌顯示區域 -->
+                <GroupBox Grid.Row="0" Grid.RowSpan="3" Grid.Column="5" Grid.ColumnSpan="2" 
+                    Header="📝 系統訊息 (ContractSearch)" 
+                    Style="{StaticResource CustomLogGroupBoxStyle}" 
+                    Margin="10,0,0,0" 
+                    Height="120" 
+                    VerticalAlignment="Top">
+                    <TextBox Name="LogTextBox" 
+                       Text="{Binding LogMessages, Mode=OneWay}" 
+                       IsReadOnly="True"
+                       TextWrapping="Wrap"
+                       VerticalScrollBarVisibility="Auto"
+                       HorizontalScrollBarVisibility="Auto"
+                       FontFamily="Consolas"
+                       FontSize="9"
+                       Foreground="#2C3E50"
+                       Background="White"
+                       BorderThickness="0"
+                       Padding="3"
+                       AcceptsReturn="True"
+                       VerticalAlignment="Stretch"
+                       HorizontalAlignment="Stretch"
+                       MaxLength="100000"/>
+                    <!-- 🆕 限制最大字元數 -->
+
+                </GroupBox>
+            </Grid>
+        </GroupBox>
+
+        <!-- 查詢結果區 - 保持不變 -->
+        <GroupBox Grid.Row="2" Header="📋 查詢結果" Margin="10,5">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- 結果統計 -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10,5">
+                    <TextBlock Name="ResultCountTextBlock" Text="查詢結果: 0 筆" FontWeight="Bold" Margin="0,0,20,0" Foreground="#2C3E50"/>
+                    <TextBlock Name="SelectedCountTextBlock" Text="已選擇: 0 筆" FontWeight="Bold" Foreground="#E67E22" Margin="0,0,20,0"/>
+                    <!-- 🆕 搜尋狀態指示器 - 簡化版 -->
+                    <TextBlock Name="SearchStatusTextBlock" FontWeight="Bold" Margin="0,0,20,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="🔍 準備就緒"/>
+                                <Setter Property="Foreground" Value="#27AE60"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSearching}" Value="True">
+                                        <Setter Property="Text" Value="🔄 搜尋中..."/>
+                                        <Setter Property="Foreground" Value="#3498DB"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Text="📝 日誌系統: 運行中" FontSize="10" Foreground="#7F8C8D" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- 🚀 極致性能優化的DataGrid -->
+                <DataGrid Grid.Row="1" Name="ResultDataGrid" Margin="10" 
+      AutoGenerateColumns="False" 
+      CanUserAddRows="False" 
+      CanUserDeleteRows="False"
+      SelectionMode="Extended" 
+      GridLinesVisibility="Horizontal" 
+      AlternatingRowBackground="#F8F9FA"
+      SelectionChanged="ResultDataGrid_SelectionChanged"
+      VirtualizingPanel.IsVirtualizing="True"
+      VirtualizingPanel.VirtualizationMode="Recycling"
+      VirtualizingPanel.IsContainerVirtualizable="True"
+      VirtualizingPanel.ScrollUnit="Item"
+      EnableRowVirtualization="True"
+      EnableColumnVirtualization="True"
+      ScrollViewer.CanContentScroll="True"
+      ScrollViewer.IsDeferredScrollingEnabled="True">
+
+                    <!-- 🎯 優化的列定義 -->
+                    <DataGrid.Columns>
+                        <DataGridCheckBoxColumn Header="選擇" Binding="{Binding IsSelected}" Width="50"/>
+                        <DataGridTextColumn Header="商品代號" Binding="{Binding Symbol}" Width="120" IsReadOnly="True">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="FontFamily" Value="Consolas"/>
+                                    <Setter Property="FontWeight" Value="Bold"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="商品名稱" Binding="{Binding Name}" Width="180" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="交易所" Binding="{Binding Exchange}" Width="80" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="類別" Binding="{Binding Category}" Width="80" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="證券類型" Binding="{Binding SecurityType}" Width="80" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="參考價" Binding="{Binding Reference, StringFormat=F2}" Width="80" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="漲停價" Binding="{Binding LimitUp, StringFormat=F2}" Width="80" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="跌停價" Binding="{Binding LimitDown, StringFormat=F2}" Width="80" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="履約價" Binding="{Binding StrikePrice, StringFormat=F2}" Width="80" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="權利" Binding="{Binding OptionRight}" Width="50" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="到期月" Binding="{Binding DeliveryMonth}" Width="80" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="目標代碼" Binding="{Binding TargetCode}" Width="100" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="更新日期" Binding="{Binding UpdateDate}" Width="90" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="分析時間" Binding="{Binding AnalyzedAt, StringFormat=HH:mm:ss}" Width="80" IsReadOnly="True"/>
+                    </DataGrid.Columns>
+
+                    <!-- 🎯 性能優化的行樣式 -->
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Setter Property="Height" Value="22"/>
+                            <!-- 固定行高提升虛擬化性能 -->
+                        </Style>
+                    </DataGrid.RowStyle>
+                </DataGrid>
+            </Grid>
+        </GroupBox>
+
+        <!-- 按鈕區 - 保持不變 -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="10">
+            <Button Name="ExportLogsButton" Content="📄 匯出日誌" Style="{StaticResource ButtonStyle}" Click="ExportLogsButton_Click" Background="#9B59B6" ToolTip="匯出 ContractSearch 日誌到檔案"/>
+            <Button Name="ClearAllSearchResultsButton" Content="🗑️ 清空查詢結果" Style="{StaticResource ButtonStyle}" Click="ClearAllSearchResultsButton_Click" Background="#E74C3C" ToolTip="清空所有查詢結果"/>
+            <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="10,0"/>
+            <Button Name="SelectAllButton" Content="✅ 全選" Style="{StaticResource ButtonStyle}" Click="SelectAllButton_Click" Background="#16A085"/>
+            <Button Name="ClearSelectionButton" Content="❌ 清除選擇" Style="{StaticResource ButtonStyle}" Click="ClearSelectionButton_Click" Background="#E74C3C"/>
+            <Button Name="ViewDetailsButton" Content="👁️ 查看詳細" Style="{StaticResource ButtonStyle}" Click="ViewDetailsButton_Click" Background="#8E44AD"/>
+            <Button Name="CreateQuickButtonsButton" Content="⚡ 建立快速按鈕" Style="{StaticResource ButtonStyle}" Click="CreateQuickButtonsButton_Click" Background="#27AE60"/>
+            <Button Name="CancelButton" Content="❌ 取消" Style="{StaticResource ButtonStyle}" Click="CancelButton_Click" Background="#95A5A6"/>
+        </StackPanel>
+    </Grid>
+</Window>

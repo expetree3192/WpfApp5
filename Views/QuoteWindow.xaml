@@ -1,0 +1,1134 @@
+﻿<Window x:Class="WpfApp5.Views.QuoteWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="clr-namespace:WpfApp5.ViewModels"
+    xmlns:services="clr-namespace:WpfApp5.Services"
+    xmlns:utils="clr-namespace:WpfApp5.Utils"
+    xmlns:hc="https://handyorg.github.io/handycontrol"
+    mc:Ignorable="d"
+    Title="高頻報價視窗" 
+    Height="800" 
+    Width="518"
+    d:Height="800"
+    d:Width="1200"
+    WindowStartupLocation="CenterScreen"
+    Background="#1E1E1E"
+    Loaded="Window_Loaded" 
+    Closing="Window_Closing">
+
+    <!-- 🎯 主要布局：左右兩欄 -->
+    <Grid Background="{StaticResource DarkBackground}">
+        <Grid.ColumnDefinitions>
+            <!-- 🔴 左側框區域：固定顯示，寬度約 500px -->
+            <ColumnDefinition Width="500"/>
+            <!-- 🟢 右側框區域：動態寬度，使用 * 彈性寬度 -->
+            <ColumnDefinition Width="{Binding IsRightPanelVisible, Converter={StaticResource VisibilityToGridLengthConverter}, ConverterParameter='*,0'}"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ========== 🔴 左側框區域（左側，固定顯示） ========== -->
+        <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+                <!-- 第一行：商品代號輸入 + 智能訂閱按鈕 -->
+                <RowDefinition Height="Auto"/>
+                <!-- 第二行：委託類型 + 委託數量 -->
+                <RowDefinition Height="Auto"/>
+                <!-- 第三行：快速數量選擇按鈕 -->
+                <RowDefinition Height="Auto"/>
+                <!-- 第四行：商品顯示 + 價格搜尋 + GoTo + 右側面板切換 -->
+                <RowDefinition Height="Auto"/>
+                <!-- 第五行：原有的報價表格區域 -->
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- ========== 第一行：商品代號輸入 + 智能訂閱按鈕 ========== -->
+            <Border Grid.Row="0" Background="{StaticResource DarkSurface}" Padding="10,8" BorderBrush="{StaticResource DarkBorder}" BorderThickness="0,0,0,1">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- 商品代號輸入框 -->
+                    <TextBox Text="{Binding SubscribeSymbol, UpdateSourceTrigger=PropertyChanged}" Width="100" Height="26" FontWeight="Bold" Foreground="Yellow" FontSize="14" Margin="0,0,8,0" ToolTip="輸入商品代號" VerticalContentAlignment="Center"/>
+                    <!-- 🚀 智能訂閱按鈕 -->
+                    <Button Content="🚀 智能訂閱" Command="{Binding SmartSubscribeCommand}" Width="100" Height="26" Margin="0,0,8,0" Foreground="White" FontWeight="Bold" FontSize="12" ToolTip="根據商品類型自動訂閱對應的報價類型"/>
+                    <!-- OrderCond 循環切換按鈕（僅股票顯示） -->
+                    <Button Command="{Binding ToggleOrderCondCommand}" BorderBrush="#FFCC00" Width="60" Height="26" Margin="0,0,8,0" FontSize="14" FontWeight="Bold" Padding="0" Visibility="{Binding IsStockProduct, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="Content" Value="{Binding OrderCondText, FallbackValue=整股}"/>
+                                <Setter Property="Background" Value="{StaticResource DarkSurface}"/>
+                                <Setter Property="Foreground" Value="{Binding OrderCondColor}"/>
+                                <Setter Property="BorderBrush" Value="{Binding OrderCondColor}"/>
+                                <Setter Property="BorderThickness" Value="1"/>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <!-- ActualPosition 按鈕 -->
+                    <Button Width="45" Height="26" Margin="0,0,8,0" FontSize="18" FontWeight="Bold" Padding="2,0" ToolTip="目前實際部位 (正值=多單, 負值=空單)">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <!-- 使用 NumberToColorConverter 設定邊框顏色 -->
+                                <Setter Property="BorderBrush" Value="{Binding ActualPosition, Converter={StaticResource NumberToColorConverter}}"/>
+                                <Setter Property="BorderThickness" Value="2"/>
+                                <Setter Property="Content">
+                                    <Setter.Value>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <!-- 只顯示數值，使用 NumberToColorConverter 設定文字顏色 -->
+                                            <TextBlock Text="{Binding ActualPosition, FallbackValue=F}" Foreground="{Binding ActualPosition, Converter={StaticResource NumberToColorConverter}}" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <!-- 當沒有部位時，降低透明度並減少邊框厚度 -->
+                                    <DataTrigger Binding="{Binding ActualPosition}" Value="0">
+                                        <Setter Property="Opacity" Value="0.6"/>
+                                        <Setter Property="BorderThickness" Value="1"/>
+                                    </DataTrigger>
+                                    <!-- 當有部位時（正值或負值），增強顯示效果 -->
+                                    <DataTrigger Binding="{Binding ActualPosition, Converter={StaticResource NumberComparisonConverter}, ConverterParameter='!=0'}" Value="True">
+                                        <Setter Property="Opacity" Value="1.0"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- AvgCost 平均成本顯示按鈕 -->
+                    <Button Width="60" Height="26" Margin="0,0,8,0" FontSize="11" FontWeight="Bold" Padding="2,0" ToolTip="平均成本價格">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="Background" Value="{StaticResource DarkSurface}"/>
+                                <Setter Property="BorderBrush" Value="#888888"/>
+                                <Setter Property="BorderThickness" Value="1"/>
+                                <Setter Property="Content">
+                                    <Setter.Value>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <!-- 顯示平均成本，當有部位時顯示數值，沒有部位時顯示 "N/A" -->
+                                            <TextBlock FontSize="10" FontWeight="Bold" VerticalAlignment="Center" Foreground="#CCCCCC">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="{Binding AvgCost, StringFormat='{}{0:F2}', FallbackValue=N/A}"/>
+                                                        <Style.Triggers>
+                                                            <!-- 當 AvgCost 為 0 時顯示 "N/A" -->
+                                                            <DataTrigger Binding="{Binding AvgCost}" Value="0">
+                                                                <Setter Property="Text" Value="N/A"/>
+                                                                <Setter Property="Foreground" Value="#666666"/>
+                                                            </DataTrigger>
+                                                            <!-- 當 ActualPosition 為 0 時也顯示 "N/A" -->
+                                                            <DataTrigger Binding="{Binding ActualPosition}" Value="0">
+                                                                <Setter Property="Text" Value="N/A"/>
+                                                                <Setter Property="Foreground" Value="#666666"/>
+                                                            </DataTrigger>
+                                                            <!-- 當有部位且有成本時，使用正常顏色 -->
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding ActualPosition, Converter={StaticResource NumberComparisonConverter}, ConverterParameter='!=0'}" Value="True"/>
+                                                                    <Condition Binding="{Binding AvgCost, Converter={StaticResource NumberComparisonConverter}, ConverterParameter='>0'}" Value="True"/>
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="Foreground" Value="#FFCC00"/>
+                                                            </MultiDataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <!-- 當沒有部位時，降低透明度 -->
+                                    <DataTrigger Binding="{Binding ActualPosition}" Value="0">
+                                        <Setter Property="Opacity" Value="0.6"/>
+                                    </DataTrigger>
+                                    <!-- 當有部位時，增強顯示效果 -->
+                                    <DataTrigger Binding="{Binding ActualPosition, Converter={StaticResource NumberComparisonConverter}, ConverterParameter='!=0'}" Value="True">
+                                        <Setter Property="Opacity" Value="1.0"/>
+                                        <Setter Property="BorderBrush" Value="#FFCC00"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- 帳面損益顯示按鈕 -->
+                    <Button Width="70" Height="26" Margin="0,0,8,0" FontSize="11" FontWeight="Bold" Padding="2,0" ToolTip="帳面損益 (來自 Shioaji Position.pnl)">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="Background" Value="{StaticResource DarkSurface}"/>
+                                <Setter Property="BorderBrush" Value="#888888"/>
+                                <Setter Property="BorderThickness" Value="1"/>
+                                <Setter Property="Content">
+                                    <Setter.Value>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <!-- 顯示帳面損益，使用 NumberToColorConverter 設定顏色 -->
+                                            <TextBlock FontSize="10" FontWeight="Bold" VerticalAlignment="Center" 
+                                          Text="{Binding ProfitLoss, StringFormat='{}{0:+#,0;-#,0;0}', FallbackValue=0}"
+                                          Foreground="{Binding ProfitLoss, Converter={StaticResource NumberToColorConverter}}"/>
+                                        </StackPanel>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <!-- 當沒有部位時，降低透明度 -->
+                                    <DataTrigger Binding="{Binding ActualPosition}" Value="0">
+                                        <Setter Property="Opacity" Value="0.6"/>
+                                    </DataTrigger>
+                                    <!-- 當有部位時，根據損益設定邊框顏色 -->
+                                    <DataTrigger Binding="{Binding ActualPosition, Converter={StaticResource NumberComparisonConverter}, ConverterParameter='!=0'}" Value="True">
+                                        <Setter Property="Opacity" Value="1.0"/>
+                                        <Setter Property="BorderBrush" Value="{Binding ProfitLoss, Converter={StaticResource NumberToColorConverter}}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+            </Border>
+
+            <!-- ========== 第二行：價格類型 + 委託類型 + 倉位類型 + 委託數量 ========== -->
+
+            <Border Grid.Row="1" Background="{StaticResource DarkSurface}" Padding="10,5" BorderBrush="{StaticResource DarkBorder}" BorderThickness="0,0,0,1">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- 價格類型下拉選單 (price_type) -->
+                    <ComboBox SelectedItem="{Binding SelectedPriceType, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding PriceTypes}" Width="60" Height="26" Margin="0,0,5,0" ToolTip="選擇價格類型：限價/市價/範圍市價"/>
+                    <!-- 委託類型下拉選單 (order_type) -->
+                    <ComboBox SelectedItem="{Binding SelectedOrderType, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding OrderTypes}" Width="60" Height="26" Margin="0,0,5,0" ToolTip="選擇委託類型：ROD/IOC/FOK"/>
+                    <!-- 倉位類型下拉選單 (octype) -->
+                    <ComboBox SelectedItem="{Binding SelectedOcType, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding OcTypes}" Width="80" Height="26" Margin="0,0,5,0" ToolTip="選擇倉位類型：自動/新倉/平倉/當沖"/>
+                    <!-- 委託數量輸入框 -->
+                    <TextBox Text="{Binding OrderQuantity, UpdateSourceTrigger=PropertyChanged}" ToolTip="輸入委託數量 (1-999)" PreviewTextInput="NumberValidationTextBox" MaxLength="3" Margin="0" Width="50" Height="26" Foreground="Yellow" FontWeight="Bold" FontSize="14" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ========== 第二行：價格類型 + 委託類型 + 倉位類型 + 委託數量 + 快速數量按鈕 + 當沖按鈕 + 核能按鈕 ========== -->
+            <Border Grid.Row="1" Background="{StaticResource DarkSurface}" Padding="10,5" BorderBrush="{StaticResource DarkBorder}" BorderThickness="0,0,0,1">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- 價格類型下拉選單 (price_type) -->
+                    <ComboBox SelectedItem="{Binding SelectedPriceType, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding PriceTypes}" Width="60" Height="26" Margin="0,0,1,0" ToolTip="選擇價格類型：限價/市價/範圍市價"/>
+                    <!-- 委託類型下拉選單 (order_type) -->
+                    <ComboBox SelectedItem="{Binding SelectedOrderType, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding OrderTypes}" Width="60" Height="26" Margin="0,0,1,0" ToolTip="選擇委託類型：ROD/IOC/FOK"/>
+                    <!-- 倉位類型下拉選單 (octype) -->
+                    <ComboBox SelectedItem="{Binding SelectedOcType, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding OcTypes}" Width="70" Height="26" Margin="0,0,1,0" ToolTip="選擇倉位類型：自動/新倉/平倉/當沖"/>
+                    <!-- 委託數量輸入框 -->
+                    <TextBox Text="{Binding OrderQuantity, UpdateSourceTrigger=PropertyChanged}" ToolTip="輸入委託數量 (1-999)" PreviewTextInput="NumberValidationTextBox" MaxLength="3" Margin="0,0,0,0" Width="50" Height="26" Foreground="Yellow" FontWeight="Bold" FontSize="14" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
+
+                    <!-- 常用數量快捷按鈕 (1-5) -->
+                    <Button Content="1" Click="SetQuantity_Click" Tag="1" Width="30" Height="26" Margin="0,0,0,0" Style="{StaticResource GeneralButtonStyle}"/>
+                    <Button Content="2" Click="SetQuantity_Click" Tag="2" Width="30" Height="26" Margin="0,0,0,0" Style="{StaticResource GeneralButtonStyle}"/>
+                    <Button Content="3" Click="SetQuantity_Click" Tag="3" Width="30" Height="26" Margin="0,0,0,0" Style="{StaticResource GeneralButtonStyle}"/>
+                    <Button Content="4" Click="SetQuantity_Click" Tag="4" Width="30" Height="26" Margin="0,0,0,0" Style="{StaticResource GeneralButtonStyle}"/>
+                    <Button Content="5" Click="SetQuantity_Click" Tag="5" Width="30" Height="26" Margin="0,0,2,0" Style="{StaticResource GeneralButtonStyle}"/>
+
+                    <!-- 當沖按鈕 -->
+                    <Button Command="{Binding ToggleDayTradeCommand}" Width="50" Height="26" Margin="0,0,2,0" FontSize="14" FontWeight="Bold" Padding="0">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="Content" Value="{Binding DayTradeButtonText, FallbackValue=當沖}"/>
+                                <Setter Property="Background" Value="{StaticResource DarkSurface}"/>
+                                <Setter Property="Foreground" Value="{Binding DayTradeTextColor}"/>
+                                <Setter Property="BorderBrush" Value="{Binding DayTradeBorderBrush}"/>
+                                <Setter Property="BorderThickness" Value="1"/>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- 核能輻射標誌按鈕 (小尺寸版本) -->
+                    <Button x:Name="btnNuclearMode" Width="28" Height="26" Background="Transparent" BorderThickness="0" Margin="0" Padding="1" ToolTip="一鍵刪單+平倉離場">
+                        <Grid>
+                            <!-- 外圓邊框 (黑色) -->
+                            <Ellipse Width="24" Height="24" Fill="Black"/>
+
+                            <!-- 內圓背景 (黃色) -->
+                            <Ellipse Width="20" Height="20" Fill="#FFFF00"/>
+
+                            <!-- 輻射扇形容器 -->
+                            <Canvas Width="20" Height="20" ClipToBounds="True">
+                                <!-- 第一個輻射扇形 (頂部) -->
+                                <Grid Width="20" Height="20" RenderTransformOrigin="0.5,0.5">
+                                    <Grid.RenderTransform>
+                                        <RotateTransform Angle="0"/>
+                                    </Grid.RenderTransform>
+                                    <Path Fill="Black" Data="M 10,10 L 10,2 A 8,8 0 0,1 15.5,5.5 Z"/>
+                                </Grid>
+
+                                <!-- 第二個輻射扇形 (右下) -->
+                                <Grid Width="20" Height="20" RenderTransformOrigin="0.5,0.5">
+                                    <Grid.RenderTransform>
+                                        <RotateTransform Angle="120"/>
+                                    </Grid.RenderTransform>
+                                    <Path Fill="Black" Data="M 10,10 L 10,2 A 8,8 0 0,1 15.5,5.5 Z"/>
+                                </Grid>
+
+                                <!-- 第三個輻射扇形 (左下) -->
+                                <Grid Width="20" Height="20" RenderTransformOrigin="0.5,0.5">
+                                    <Grid.RenderTransform>
+                                        <RotateTransform Angle="240"/>
+                                    </Grid.RenderTransform>
+                                    <Path Fill="Black" Data="M 10,10 L 10,2 A 8,8 0 0,1 15.5,5.5 Z"/>
+                                </Grid>
+                            </Canvas>
+
+                            <!-- 中心圓點 (黑色) -->
+                            <Ellipse Width="3" Height="3" Fill="Black"/>
+                        </Grid>
+
+                        <!-- 按鈕樣式 -->
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                                <Style.Triggers>
+                                    <!-- 滑鼠懸停效果 -->
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Opacity" Value="0.8"/>
+                                    </Trigger>
+                                    <!-- 按下效果 -->
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter Property="Opacity" Value="0.6"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                </StackPanel>
+            </Border>
+
+            <!-- ========== 第三行：掛買數量 + 掛買價格 + 掛賣價格 + 掛賣數量 ========== -->
+            <Border Grid.Row="2" Background="{StaticResource DarkSurface}" Padding="10,5" BorderBrush="{StaticResource DarkBorder}" BorderThickness="0,0,0,1">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- 掛買數量按鈕 -->
+                    <Button Width="45" Height="26" Margin="0,0,5,0" FontSize="14" FontWeight="Bold" Padding="2,0" ToolTip="目前掛單中的買單數量">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="Content">
+                                    <Setter.Value>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <TextBlock Text="{Binding PendingBuyOrders, FallbackValue=B}" Foreground="White" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <!-- 當沒有掛單時，降低透明度 -->
+                                    <DataTrigger Binding="{Binding PendingBuyOrders}" Value="0">
+                                        <Setter Property="Opacity" Value="0.6"/>
+                                    </DataTrigger>
+                                    <!-- 當有掛單時，改變字體顏色為紅色並增加邊框效果 -->
+                                    <DataTrigger Binding="{Binding PendingBuyOrders, Converter={StaticResource GreaterThanZeroConverter}}" Value="True">
+                                        <Setter Property="Content">
+                                            <Setter.Value>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                    <TextBlock Text="{Binding PendingBuyOrders}" Foreground="#FF6B6B" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Setter Property="Opacity" Value="1.0"/>
+                                        <Setter Property="BorderBrush" Value="#FF6B6B"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- 掛買價格顯示 -->
+                    <TextBlock Text="{Binding PendingBuyPrice, FallbackValue=買價}" FontSize="14" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" ToolTip="目前掛單中的買單價格" Foreground="#FF6B6B" Width="80" TextAlignment="Center"/>
+
+                    <!-- 掛賣價格顯示 -->
+                    <TextBlock Text="{Binding PendingSellPrice, FallbackValue=賣價}" FontSize="14" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" ToolTip="目前掛單中的賣單價格" Foreground="#4CAF50" Width="80" TextAlignment="Center"/>
+
+                    <!-- 掛賣數量按鈕 -->
+                    <Button Width="45" Height="26" Margin="0,0,0,0" FontSize="14" FontWeight="Bold" Padding="2,0" ToolTip="目前掛單中的賣單數量">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="Content">
+                                    <Setter.Value>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <TextBlock Text="{Binding PendingSellOrders, FallbackValue=S}" Foreground="White" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <!-- 當沒有掛單時，降低透明度 -->
+                                    <DataTrigger Binding="{Binding PendingSellOrders}" Value="0">
+                                        <Setter Property="Opacity" Value="0.6"/>
+                                    </DataTrigger>
+                                    <!-- 當有掛單時，改變字體顏色為綠色 -->
+                                    <DataTrigger Binding="{Binding PendingSellOrders, Converter={StaticResource GreaterThanZeroConverter}}" Value="True">
+                                        <Setter Property="Content">
+                                            <Setter.Value>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                    <TextBlock Text="{Binding PendingSellOrders}" Foreground="#4CAF50" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Setter Property="Opacity" Value="1.0"/>
+                                        <Setter Property="BorderBrush" Value="#4CAF50"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+            </Border>
+
+            <!-- ========== 第四行：商品顯示 + 內外盤比例 + 價格搜尋 + GoTo + 右側面板切換 ========== -->
+            <Border Grid.Row="3" Background="{StaticResource DarkSurface}" Padding="10,5" BorderBrush="{StaticResource DarkBorder}" BorderThickness="0,0,0,1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- 左側：商品代號顯示 -->
+                        <ColumnDefinition Width="*"/>
+                        <!-- 中間：內外盤比例 -->
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- 價格搜尋 -->
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- GoTo 按鈕 -->
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- 右側面板切換按鈕 -->
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- 視窗尺寸切換按鈕 -->
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 左側：商品代號顯示 -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="商品:" Foreground="White" Margin="0,0,5,0" VerticalAlignment="Center" FontSize="16"/>
+                        <TextBlock x:Name="CurrentCodeText" Text="{Binding OrderBookViewModel.Code, FallbackValue=None}" 
+                       Foreground="{StaticResource YellowColor}" FontWeight="Bold" FontSize="16" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- 中間：內外盤比例 -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20,0">
+                        <TextBlock Text="內" Foreground="{StaticResource GreenColor}" FontWeight="Bold" FontSize="14" Margin="0,0,2,0"/>
+                        <TextBlock Text="{Binding OrderBookViewModel.InnerDealPercent}" Foreground="{StaticResource GreenColor}" FontWeight="Bold" FontSize="14"/>
+                        <TextBlock Text="|" Foreground="White" FontSize="14" Margin="5,0"/>
+                        <TextBlock Text="{Binding OrderBookViewModel.OuterDealPercent}" Foreground="{StaticResource RedColor}" FontWeight="Bold" FontSize="14"/>
+                        <TextBlock Text="外" Foreground="{StaticResource RedColor}" FontWeight="Bold" FontSize="14" Margin="2,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- GoTo 按鈕 -->
+                    <Button Grid.Column="3" Content="GoTo" Command="{Binding GoToPriceCommand}" CommandParameter="{Binding ElementName=PriceTextBox, Path=Text}" 
+                Width="55" Height="22" Margin="5,0,0,0" FontSize="12" FontWeight="Bold" BorderBrush="White" Background="#3F3F9F" Foreground="White"/>
+
+                    <!-- 右側面板切換按鈕 -->
+                    <Button Grid.Column="4" Content="{Binding RightPanelButtonText, FallbackValue=Hide}" Command="{Binding ToggleRightPanelCommand}" 
+                Width="55" Height="22" Margin="2,0,0,0" FontSize="12" FontWeight="Bold" Background="#2D2D30" Foreground="White"
+                BorderBrush="White" BorderThickness="1" ToolTip="切換右側資料區顯示/隱藏"/>
+
+                    <!-- 視窗尺寸切換按鈕 -->
+                    <Button Grid.Column="5" Content="{Binding WindowSizeButtonText, FallbackValue=▶▶}" Command="{Binding ToggleWindowSizeCommand}" 
+                Width="40" Height="22" Margin="2,0,0,0" FontSize="10" FontWeight="Bold" Foreground="White" 
+                BorderBrush="White" BorderThickness="1" ToolTip="切換視窗尺寸（小/大）" Cursor="Hand"/>
+                </Grid>
+            </Border>
+
+            <!-- ========== 報價表格區域 ========== -->
+            <Grid Grid.Row="4">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*" MinHeight="100"/>
+                    <RowDefinition Height="Auto" MinHeight="60"/>
+                </Grid.RowDefinitions>
+
+                <!-- 🎨 標題列 - 7個欄位版本 -->
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="65"/>
+                        <!-- 刪買 -->
+                        <ColumnDefinition Width="65"/>
+                        <!-- 委買 -->
+                        <ColumnDefinition Width="65"/>
+                        <!-- 價格% -->
+                        <ColumnDefinition Width="90"/>
+                        <!-- PriceTextBox -->
+                        <ColumnDefinition Width="65"/>
+                        <!-- 量 -->
+                        <ColumnDefinition Width="65"/>
+                        <!-- 委賣 -->
+                        <ColumnDefinition Width="65"/>
+                        <!-- 刪賣 -->
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 刪買按鈕 -->
+                    <Button Grid.Column="0" Command="{Binding CancelBuyOrdersCommand}" ToolTip="刪除所有買單">
+                        <TextBlock FontFamily="Consolas" FontWeight="Bold">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <!-- 預設顯示 "刪買"，字體大小 16，黃色 -->
+                                    <Setter Property="Text" Value="刪買"/>
+                                    <Setter Property="FontSize" Value="16"/>
+                                    <Setter Property="Foreground" Value="{StaticResource YellowColor}"/>
+                                    <Style.Triggers>
+                                        <!-- 當有掛買數量時，顯示 "刪買(數量)" 並縮小字體，改為紅色 -->
+                                        <DataTrigger Binding="{Binding PendingBuyOrders, Converter={StaticResource GreaterThanZeroConverter}}" Value="True">
+                                            <Setter Property="Text" Value="{Binding PendingBuyOrders, StringFormat='刪買({0})'}"/>
+                                            <Setter Property="FontSize" Value="12"/>
+                                            <Setter Property="Foreground" Value="{StaticResource RedColor}"/>
+                                        </DataTrigger>
+                                        <!-- 當掛買數量為 0 時，顯示 "刪買"，使用原始字體大小和黃色 -->
+                                        <DataTrigger Binding="{Binding PendingBuyOrders}" Value="0">
+                                            <Setter Property="Text" Value="刪買"/>
+                                            <Setter Property="FontSize" Value="16"/>
+                                            <Setter Property="Foreground" Value="{StaticResource YellowColor}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Button>
+
+                    <!-- 委買按鈕 -->
+                    <Button Grid.Column="1" Command="{Binding PlaceBuyOrderCommand}" ToolTip="買進按鈕">
+                        <TextBlock Text="委買" FontFamily="Consolas" FontSize="16" FontWeight="Bold" Foreground="{StaticResource YellowColor}"/>
+                    </Button>
+
+                    <!-- 價格%標題 -->
+                    <Button Grid.Column="2" ToolTip="價格變動百分比">
+                        <TextBlock Text="%" FontFamily="Consolas" FontSize="16" FontWeight="Bold" Foreground="{StaticResource YellowColor}"/>
+                    </Button>
+
+                    <!-- 價格輸入框 -->
+                    <TextBox Grid.Column="3" x:Name="PriceTextBox" Text="{Binding ManualOrderPrice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}" FontSize="16" Foreground="Yellow" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" TextAlignment="Center" ToolTip="輸入價位for下單/置中"/>
+
+                    <!-- 量標題 -->
+                    <Button Grid.Column="4" ToolTip="成交量">
+                        <TextBlock Text="量" FontFamily="Consolas" FontSize="16" FontWeight="Bold" Foreground="{StaticResource YellowColor}"/>
+                    </Button>
+
+                    <!-- 委賣按鈕 -->
+                    <Button Grid.Column="5" Command="{Binding PlaceSellOrderCommand}" ToolTip="賣出按鈕">
+                        <TextBlock Text="委賣" FontFamily="Consolas" FontSize="16" FontWeight="Bold" Foreground="{StaticResource YellowColor}"/>
+                    </Button>
+
+                    <!-- 刪賣按鈕 -->
+                    <Button Grid.Column="6" Command="{Binding CancelSellOrdersCommand}" ToolTip="刪除所有賣單（異步版本）">
+                        <TextBlock FontFamily="Consolas" FontWeight="Bold">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <!-- 預設顯示 "刪賣"，字體大小 16，黃色 -->
+                                    <Setter Property="Text" Value="刪賣"/>
+                                    <Setter Property="FontSize" Value="16"/>
+                                    <Setter Property="Foreground" Value="{StaticResource YellowColor}"/>
+                                    <Style.Triggers>
+                                        <!-- 當有掛賣數量時，顯示 "刪賣(數量)" 並縮小字體，改為綠色 -->
+                                        <DataTrigger Binding="{Binding PendingSellOrders, Converter={StaticResource GreaterThanZeroConverter}}" Value="True">
+                                            <Setter Property="Text" Value="{Binding PendingSellOrders, StringFormat='刪賣({0})'}"/>
+                                            <Setter Property="FontSize" Value="12"/>
+                                            <Setter Property="Foreground" Value="{StaticResource GreenColor}"/>
+                                        </DataTrigger>
+                                        <!-- 當掛賣數量為 0 時，顯示 "刪賣"，使用原始字體大小和黃色 -->
+                                        <DataTrigger Binding="{Binding PendingSellOrders}" Value="0">
+                                            <Setter Property="Text" Value="刪賣"/>
+                                            <Setter Property="FontSize" Value="16"/>
+                                            <Setter Property="Foreground" Value="{StaticResource YellowColor}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Button>
+                </Grid>
+
+                <!-- 七檔報價內容 - 使用 ListView + VirtualizingStackPanel -->
+                <ListView x:Name="OrderBookListView" Grid.Row="1" ItemsSource="{Binding OrderBookViewModel.PriceRows}"
+            VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.CacheLength="20,20"
+            VirtualizingPanel.CacheLengthUnit="Item" VirtualizingPanel.ScrollUnit="Pixel" ScrollViewer.CanContentScroll="True" ScrollViewer.IsDeferredScrollingEnabled="False"
+            BorderThickness="0" Background="Transparent" SelectionMode="Single" HorizontalContentAlignment="Stretch" PreviewMouseWheel="OrderBookListView_PreviewMouseWheel">
+
+                    <!-- 綁定垂直滾動條可見性 -->
+                    <ListView.Resources>
+                        <Style TargetType="ScrollViewer">
+                            <Setter Property="VerticalScrollBarVisibility" Value="{Binding OrderBookViewModel.ScrollBarVisibility}"/>
+                        </Style>
+                    </ListView.Resources>
+
+                    <!-- 使用 VirtualizingStackPanel -->
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel/>
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+
+                    <!-- 價格行模板 - 7個欄位版本 -->
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Height="20">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="60"/>
+                                    <!-- 刪買 -->
+                                    <ColumnDefinition Width="65"/>
+                                    <!-- 委買 -->
+                                    <ColumnDefinition Width="65"/>
+                                    <!-- 價格% -->
+                                    <ColumnDefinition Width="90"/>
+                                    <!-- PriceTextBox -->
+                                    <ColumnDefinition Width="65"/>
+                                    <!-- 量 -->
+                                    <ColumnDefinition Width="65"/>
+                                    <!-- 委賣 -->
+                                    <ColumnDefinition Width="65"/>
+                                    <!-- 刪賣 -->
+                                </Grid.ColumnDefinitions>
+
+                                <!-- 欄位 0：刪買欄位 -->
+                                <Border Grid.Column="0" Background="{Binding IsBestBid, Converter={StaticResource BoolToBackgroundConverter}, ConverterParameter=BidBest}" Tag="{Binding Price}" MouseLeftButtonDown="PriceRow_MouseLeftButtonDown" MouseRightButtonDown="PriceRow_MouseRightButtonDown">
+                                    <Grid>
+                                        <!-- 顯示「買進」文字（最佳買價時） 
+                                        <TextBlock Text="買進" Visibility="{Binding IsBestBid, Converter={StaticResource BoolToVisibilityConverter}}" Foreground="#FFDDDD" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        -->
+                                        <!-- 顯示買單掛單資訊 -->
+                                        <TextBlock Text="{Binding BuyOrderText}" Visibility="{Binding HasBuyOrder, Converter={StaticResource BoolToVisibilityConverter}}" Foreground="#FFD700" FontWeight="Bold" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- 欄位 1：委買欄位 -->
+                                <Border Grid.Column="1" Background="{Binding IsBestBid, Converter={StaticResource BoolToBackgroundConverter}, ConverterParameter=BidVolume}" Tag="{Binding Price}" MouseLeftButtonDown="PriceRow_MouseLeftButtonDown" MouseRightButtonDown="PriceRow_MouseRightButtonDown">
+                                    <TextBlock Text="{Binding BidVolume}" Visibility="{Binding HasBidVolume, Converter={StaticResource BoolToVisibilityConverter}}" Foreground="#FFDDDD" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+
+                                <!-- 欄位 2：價格%欄位 -->
+                                <Border Grid.Column="2" Tag="{Binding Price}" MouseLeftButtonDown="PriceRow_MouseLeftButtonDown" MouseRightButtonDown="PriceRow_MouseRightButtonDown">
+                                    <TextBlock FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{Binding PriceChangePercent, Converter={StaticResource NumberToColorConverter}}">
+                                        <TextBlock.Text>
+                                            <MultiBinding StringFormat="{}{0:F3}">
+                                                <Binding Path="PriceChangePercentAbsolute"/>
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </Border>
+
+                                <!-- 欄位 3：價位欄位 -->
+                                <Border Grid.Column="3" Tag="{Binding Price}" MouseLeftButtonDown="PriceRow_MouseLeftButtonDown" MouseRightButtonDown="PriceRow_MouseRightButtonDown">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsLimitUp}" Value="True">
+                                                    <Setter Property="Background" Value="#5A2828"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsLimitDown}" Value="True">
+                                                    <Setter Property="Background" Value="#285A28"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsReference}" Value="True">
+                                                    <Setter Property="Background" Value="#28285A"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsOpen}" Value="True">
+                                                    <Setter Property="Background" Value="#999900"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsHigh}" Value="True">
+                                                    <Setter Property="Background" Value="#B15BFF"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsLow}" Value="True">
+                                                    <Setter Property="Background" Value="#00b3b3"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsLastTrade}" Value="True">
+                                                    <Setter Property="Background" Value="Transparent"/>
+                                                    <Setter Property="BorderBrush" Value="#FFCC00"/>
+                                                    <Setter Property="BorderThickness" Value="2"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+
+                                    <!-- 價格（置中對齊） -->
+                                    <TextBlock Text="{Binding PriceText}" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsLastTrade}" Value="True">
+                                                        <Setter Property="Foreground" Value="{Binding LastTradeColor}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsLimitUp}" Value="True">
+                                                        <Setter Property="Foreground" Value="#FF5555"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsLimitDown}" Value="True">
+                                                        <Setter Property="Foreground" Value="#55FF55"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsReference}" Value="True">
+                                                        <Setter Property="Foreground" Value="#8888FF"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsOpen}" Value="True">
+                                                        <Setter Property="Foreground" Value="#FFFF88"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsHigh}" Value="True">
+                                                        <Setter Property="Foreground" Value="#FF88FF"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsLow}" Value="True">
+                                                        <Setter Property="Foreground" Value="#88FFFF"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Border>
+
+                                <!-- 欄位 4：量欄位 -->
+                                <Border Grid.Column="4" Tag="{Binding Price}" MouseLeftButtonDown="PriceRow_MouseLeftButtonDown" MouseRightButtonDown="PriceRow_MouseRightButtonDown">
+                                    <TextBlock Text="{Binding TickVolume}" Visibility="{Binding HasLastTradeVolume, Converter={StaticResource BoolToVisibilityConverter}}" FontSize="16" FontWeight="Normal" Foreground="{Binding LastTradeColor}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+
+                                <!-- 欄位 5：委賣欄位 -->
+                                <Border Grid.Column="5" Background="{Binding IsBestAsk, Converter={StaticResource BoolToBackgroundConverter}, ConverterParameter=AskVolume}" Tag="{Binding Price}" MouseLeftButtonDown="PriceRow_MouseLeftButtonDown" MouseRightButtonDown="PriceRow_MouseRightButtonDown">
+                                    <TextBlock Text="{Binding AskVolume}" Visibility="{Binding HasAskVolume, Converter={StaticResource BoolToVisibilityConverter}}" Foreground="#DDFFDD" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+
+                                <!-- 欄位 6：刪賣欄位 -->
+                                <Border Grid.Column="6" Background="{Binding IsBestAsk, Converter={StaticResource BoolToBackgroundConverter}, ConverterParameter=AskBest}" Tag="{Binding Price}" MouseLeftButtonDown="PriceRow_MouseLeftButtonDown" MouseRightButtonDown="PriceRow_MouseRightButtonDown">
+                                    <Grid>
+                                        <!-- 顯示「賣出」文字（最佳賣價時） 
+                                        <TextBlock Text="賣出" Visibility="{Binding IsBestAsk, Converter={StaticResource BoolToVisibilityConverter}}" Foreground="#DDFFDD" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="16"/>
+                                        -->
+                                        <!-- 顯示賣單掛單資訊 -->
+                                        <TextBlock Text="{Binding SellOrderText}" Visibility="{Binding HasSellOrder, Converter={StaticResource BoolToVisibilityConverter}}" Foreground="#FFD700" FontWeight="Bold" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+
+                    <!-- ItemContainerStyle - 添加明顯的選中外框 -->
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Height" Value="20"/>
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="Margin" Value="0"/>
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="BorderBrush" Value="Transparent"/>
+                            <Setter Property="Focusable" Value="True"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListViewItem">
+                                        <Border x:Name="ItemBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                                            <ContentPresenter/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#00D4FF"/>
+                                                <Setter TargetName="ItemBorder" Property="BorderThickness" Value="2"/>
+                                                <Setter TargetName="ItemBorder" Property="Background" Value="#1A2A3E"/>
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#5599FF"/>
+                                                <Setter TargetName="ItemBorder" Property="BorderThickness" Value="2"/>
+                                                <Setter TargetName="ItemBorder" Property="Background" Value="#2A3540"/>
+                                            </Trigger>
+                                            <Trigger Property="IsFocused" Value="True">
+                                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#00FFFF"/>
+                                                <Setter TargetName="ItemBorder" Property="BorderThickness" Value="2"/>
+                                                <Setter TargetName="ItemBorder" Property="Background" Value="#1A3A4E"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                </ListView>
+
+                <!-- 📊 統計資訊 - 7個欄位版本 -->
+                <Border Grid.Row="2" Background="{StaticResource DarkSurface}" BorderBrush="{StaticResource DarkBorder}" BorderThickness="0,1,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="30"/>
+                            <RowDefinition Height="35"/>
+                            <RowDefinition Height="30"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- 總掛單量按鈕行 - 7個欄位版本 -->
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="60"/>
+                                <!-- 對應刪買欄位 -->
+                                <ColumnDefinition Width="65"/>
+                                <!-- 對應委買欄位 -->
+                                <ColumnDefinition Width="65"/>
+                                <!-- 對應價格%欄位 -->
+                                <ColumnDefinition Width="90"/>
+                                <!-- 對應價格欄位 -->
+                                <ColumnDefinition Width="65"/>
+                                <!-- 對應量欄位 -->
+                                <ColumnDefinition Width="65"/>
+                                <!-- 對應委賣欄位 -->
+                                <ColumnDefinition Width="65"/>
+                                <!-- 對應刪賣欄位 -->
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 左側按鈕（對應刪買欄位） -->
+                            <Button Grid.Column="0" Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0" Height="26" ToolTip="買單總數量顯示">
+                                <TextBlock Text="{Binding OrderBookViewModel.InnerPercent, FallbackValue=委買%}" Foreground="White" FontWeight="Bold" FontSize="14"/>
+                            </Button>
+
+                            <!-- 總委買量按鈕（對應委買欄位） -->
+                            <Button Grid.Column="1" Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0" Height="26" ToolTip="總委買量顯示">
+                                <TextBlock Text="{Binding OrderBookViewModel.BidTotalVolume, FallbackValue=總委買量}" Foreground="White" FontWeight="Bold" FontSize="14"/>
+                            </Button>
+
+                            <!-- 價格%統計按鈕（對應價格%欄位） -->
+                            <Button Grid.Column="2" Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0" Height="26" ToolTip="價格變動統計">
+                                <TextBlock Text="漲跌%" Foreground="White" FontWeight="Bold" FontSize="14"/>
+                            </Button>
+
+                            <!-- 總委買賣量差按鈕（對應價格欄位） -->
+                            <Button Grid.Column="3" Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0" Height="26" ToolTip="總委買賣量差顯示">
+                                <TextBlock Text="{Binding OrderBookViewModel.BidAskTotalVolumeDifference, FallbackValue=總委買賣量差}" Foreground="{Binding OrderBookViewModel.BidAskTotalVolumeDifference, Converter={StaticResource NumberToColorConverter}}" FontWeight="Bold" FontSize="14"/>
+                            </Button>
+
+                            <!-- 成交量統計按鈕（對應量欄位） -->
+                            <Button Grid.Column="4" Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0" Height="26" ToolTip="成交量統計">
+                                <TextBlock Text="總量" Foreground="White" FontWeight="Bold" FontSize="14"/>
+                            </Button>
+
+                            <!-- 總委賣量按鈕（對應委賣欄位） -->
+                            <Button Grid.Column="5" Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0" Height="26" ToolTip="總委賣量顯示">
+                                <TextBlock Text="{Binding OrderBookViewModel.AskTotalVolume, FallbackValue=總委賣量}" Foreground="White" FontWeight="Bold" FontSize="14"/>
+                            </Button>
+
+                            <!-- 右側按鈕（對應刪賣欄位） -->
+                            <Button Grid.Column="6" Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0" Height="26" ToolTip="賣單總數量顯示">
+                                <TextBlock Text="{Binding OrderBookViewModel.OuterPercent, FallbackValue=委賣%}" Foreground="White" FontWeight="Bold" FontSize="14"/>
+                            </Button>
+                        </Grid>
+
+                        <!-- 按鈕行 - 七個按鈕並排 -->
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="65"/>
+                                <!-- 買單全刪 -->
+                                <ColumnDefinition Width="65"/>
+                                <!-- 市買 -->
+                                <ColumnDefinition Width="65"/>
+                                <!-- 空白 -->
+                                <ColumnDefinition Width="90"/>
+                                <!-- 置中按鈕 -->
+                                <ColumnDefinition Width="65"/>
+                                <!-- 空白 -->
+                                <ColumnDefinition Width="65"/>
+                                <!-- 市賣 -->
+                                <ColumnDefinition Width="65"/>
+                                <!-- 賣單全刪 -->
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 買單全刪按鈕 -->
+                            <Button Grid.Column="0" Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0,1,0,3" Height="30" ToolTip="買單全刪功能 (尚未實作)">
+                                <TextBlock Text="買單全刪" Foreground="White" FontSize="12"/>
+                            </Button>
+
+                            <!-- 市買按鈕 -->
+                            <Button Grid.Column="1" Command="{Binding MarketBuyCommand}" Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" Foreground="{StaticResource RedColor}" FontSize="14" FontWeight="Bold" Margin="0,1,0,3" Height="30" ToolTip="市價買進">
+                                <TextBlock Text="市買" FontSize="14"/>
+                            </Button>
+
+                            <!-- 置中按鈕 -->
+                            <Button Grid.Column="3" Content="{Binding CenterButtonText, FallbackValue=置中按鈕}" Command="{Binding ToggleCenterCommand}" FontSize="14" FontWeight="Bold" Margin="0,1,0,3" Height="30" HorizontalAlignment="Center" Width="90">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Background" Value="#2D2D30"/>
+                                        <Setter Property="BorderBrush" Value="#3F3F46"/>
+                                        <Setter Property="BorderThickness" Value="1"/>
+                                        <Setter Property="Foreground" Value="{StaticResource YellowColor}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsFiveDepthCentered}" Value="True">
+                                                <Setter Property="Background" Value="#2E7D32"/>
+                                                <Setter Property="Foreground" Value="White"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsFiveDepthCentered}" Value="False">
+                                                <Setter Property="Background" Value="#8B0000"/>
+                                                <Setter Property="Foreground" Value="White"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+
+                            <!-- 市賣按鈕 -->
+                            <Button Grid.Column="5" Command="{Binding MarketSellCommand}" Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" Foreground="{StaticResource GreenColor}" FontSize="14" FontWeight="Bold" Margin="0,1,0,3" Height="30" ToolTip="市價賣出">
+                                <TextBlock Text="市賣" FontSize="14"/>
+                            </Button>
+
+                            <!-- 賣單全刪按鈕 -->
+                            <Button Grid.Column="6" Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0,1,0,3" Height="30" ToolTip="賣單全刪功能 (尚未實作)">
+                                <TextBlock Text="賣單全刪" Foreground="White" FontSize="12"/>
+                            </Button>
+                        </Grid>
+
+                        <!-- 精簡時間顯示區域 -->
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,4,0,2">
+                            <!-- 當前時間（大字體） -->
+                            <TextBlock Text="{Binding TimeOnly, FallbackValue=00:00:00}" Foreground="#FFD700" FontWeight="Bold" FontSize="16" ToolTip="{Binding FullDateTime}" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- ========== 🟢 右側框區域（右側，動態顯示/隱藏） ========== -->
+        <Grid Grid.Column="1" Visibility="{Binding IsRightPanelVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*" MinHeight="200"/>
+                <RowDefinition Height="5"/>
+                <RowDefinition Height="*" MinHeight="200"/>
+            </Grid.RowDefinitions>
+
+            <!-- ========== 上方：控制區域 ========== -->
+            <Border Grid.Row="0" Background="{StaticResource DarkSurface}" Padding="5" BorderBrush="{StaticResource DarkBorder}" BorderThickness="1,0,0,1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 第一行：帳戶選擇 + 商品設定 + 報價設定 -->
+                    <Grid Grid.Row="0" Margin="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 選擇帳戶 -->
+                        <ComboBox Grid.Column="0" SelectedItem="{Binding SelectedAccount, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding AvailableAccounts}" 
+                                  Width="110" Height="26" Margin="0" ToolTip="選擇用於下單的帳戶">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding AccountType}" FontWeight="Bold" Margin="0,0,5,0" Foreground="White" FontSize="12"/>
+                                        <TextBlock Text="-" Foreground="White" FontSize="14"/>
+                                        <TextBlock Text="{Binding AccountId}" Margin="5,0,0,0" Foreground="White" FontSize="12"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+
+                        <!-- 帳戶狀態指示器 -->
+                        <Border Grid.Column="1" Background="{Binding AccountStatusColor}" CornerRadius="10" Width="20" Height="20" Margin="0" ToolTip="{Binding AccountStatusText}">
+                            <TextBlock Text="{Binding AccountStatusIcon}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontWeight="Bold" FontSize="14"/>
+                        </Border>
+
+                        <!-- 商品類型 -->
+                        <ComboBox Grid.Column="2" SelectedItem="{Binding SelectedProductType, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding ProductTypes}" 
+                                  Width="80" Height="26" FontSize="14" Margin="0" ToolTip="選擇商品類型"/>
+
+                        <!-- 交易所/類別 -->
+                        <ComboBox Grid.Column="3" Text="{Binding SelectedExchange, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding AvailableExchanges}" 
+                                  IsEditable="True" Width="80" Height="26" FontSize="14" Margin="0" ToolTip="選擇交易所/類別"/>
+
+                        <!-- 報價類型 -->
+                        <ComboBox Grid.Column="4" SelectedItem="{Binding SelectedQuoteType, UpdateSourceTrigger=PropertyChanged}" 
+                                  ItemsSource="{Binding QuoteTypes}" Width="80" Height="26" Margin="0" ToolTip="選擇報價類型：tick、bidask 或 quote" FontSize="14"/>
+
+                        <!-- 整股/零股切換按鈕 -->
+                        <Button Grid.Column="5" Command="{Binding ToggleOrderLotTypeCommand}" Width="80" Height="26" Margin="0" ToolTip="點擊切換：整股 → 盤中零股 → 盤後零股 → 定盤">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                    <Setter Property="Content" Value="{Binding OrderLotTypeText}"/>
+                                    <Setter Property="Background" Value="{StaticResource DarkSurface}"/>
+                                    <Setter Property="Foreground" Value="{Binding OrderLotTypeColor}"/>
+                                    <Setter Property="FontWeight" Value="Bold"/>
+                                    <Setter Property="FontSize" Value="13"/>
+                                    <Setter Property="BorderBrush" Value="{Binding OrderLotTypeColor}"/>
+                                    <Setter Property="BorderThickness" Value="1"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#505080"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </Grid>
+
+                    <!-- 第二行：訂閱操作按鈕 -->
+                    <Grid Grid.Row="1" Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button Grid.Column="0" Content="智能訂閱" Command="{Binding SmartSubscribeCommand}" Width="70" Height="26" Margin="0,0,2,0" Background="#64A600" FontWeight="Bold" FontSize="12" ToolTip="訂閱單一報價類型"/>
+                        <Button Grid.Column="1" Content="單一訂閱" Command="{Binding SubscribeCommand}" Width="70" Height="26" Margin="0,0,2,0" Background="#1E6B52" FontWeight="Bold" FontSize="12" ToolTip="訂閱單一報價類型"/>
+                        <Button Grid.Column="2" Content="取消訂閱" Command="{Binding UnsubscribeCommand}" Width="70" Height="26" Margin="0,0,2,0" Background="#6B3A1E" FontWeight="Bold" FontSize="12"/>
+                        <Button Grid.Column="3" Content="取消All" Command="{Binding UnsubscribeWindowCommand}" Width="65" Height="26" Margin="0,0,2,0" Background="#6B1E1E" FontWeight="Bold" FontSize="12"/>
+                        <TextBlock Grid.Column="4" Text="{Binding SubscribedCount, FallbackValue=已訂閱, StringFormat=已訂閱: {0}}" VerticalAlignment="Center" Margin="8,0,8,0" Foreground="{StaticResource YellowColor}" FontWeight="Bold" FontSize="12"/>
+                        <Button Grid.Column="5" Content="清空" Command="{Binding ClearCommand}" Width="50" Height="26" Margin="0,0,2,0" Background="#4D4D4D" FontWeight="Bold" FontSize="12"/>
+                        <Button Grid.Column="6" Content="合約查詢" Click="OpenContractSearchWindow_Click" Width="70" Height="26" Margin="0,0,2,0" Background="#FF4081" Foreground="White" BorderBrush="#E91E63" BorderThickness="1" FontWeight="Bold" FontSize="12" />
+                        <Button Grid.Column="7" Content="查詢部位" Command="{Binding QueryAccountPositionsCommand}" Width="70" Height="26" Margin="0,0,2,0" Background="#4A90E2" Foreground="White" BorderBrush="#357ABD" BorderThickness="1" FontWeight="Bold" FontSize="11" ToolTip="查詢當前選擇帳戶的部位資訊"/>
+                        <Button Grid.Column="8" Content="初始化Data" Command="{Binding InitializeContractDataCommand}" Width="70" Height="26" Margin="0,0,2,0" Background="#5CB85C" Foreground="White" BorderBrush="#449D44" BorderThickness="1" FontWeight="Bold" FontSize="11" ToolTip="查詢所有帳戶的部位資訊"/>
+                        <Button Grid.Column="9" Content="測試" Command="{Binding CheckWindowSubscriptionStatusCommand}" Width="50" Height="26" Margin="0,0,0,0" Background="#9C27B0" Foreground="White" BorderBrush="#7B1FA2" BorderThickness="1" FontWeight="Bold" FontSize="12" ToolTip="測試功能按鈕"/>
+                    </Grid>
+
+                    <!-- 第三行：快捷選擇按鈕 - 改用 Grid 布局確保寬度一致 -->
+                    <Grid Grid.Row="2" Margin="0,0,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Label Grid.Column="0" Content="快捷選擇:" FontWeight="Bold" Width="65" FontSize="14" Padding="0" VerticalAlignment="Center"/>
+
+                        <WrapPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Left">
+                            <Button Content="台指期(TXFR1)" Background="#166534" Foreground="White" BorderBrush="#22C55E" Click="QuickSelectButton_Click" Tag="Futures|TXF|TXF202601|F" Height="22" MinWidth="90" FontSize="14" Margin="2,0" BorderThickness="1" Padding="4,0" Cursor="Hand" ToolTip="快速選擇台指期貨"/>
+                            <Button Content="台積電期(CDFR1)" Background="#EA580C" Foreground="White" BorderBrush="#F97316" Click="QuickSelectButton_Click" Tag="Futures|CDF|CDFR1|F" Height="22" MinWidth="100" FontSize="14" Margin="2,0" BorderThickness="1" Padding="4,0" Cursor="Hand" ToolTip="快速選擇台積電期貨"/>
+                            <Button Content="台積電(2330)" Background="#1E3A8A" Foreground="White" BorderBrush="#3B82F6" Click="QuickSelectButton_Click" Tag="Stocks|TSE|2330|S" Height="22" MinWidth="80" FontSize="14" Margin="2,0" BorderThickness="1" Padding="4,0" Cursor="Hand" ToolTip="快速選擇台積電股票"/>
+                            <Button Content="鈊象(3293)" Background="#1E3A8A" Foreground="White" BorderBrush="#3B82F6" Click="QuickSelectButton_Click" Tag="Stocks|OTC|3293|S" Height="22" MinWidth="70" FontSize="14" Margin="2,0" BorderThickness="1" Padding="4,0" Cursor="Hand" ToolTip="快速選擇鈊象股票"/>
+                            <Button Content="聯發科(2454)" Background="#1E3A8A" Foreground="White" BorderBrush="#3B82F6" Click="QuickSelectButton_Click" Tag="Stocks|TSE|2454|S" Height="22" MinWidth="80" FontSize="14" Margin="2,0" BorderThickness="1" Padding="4,0" Cursor="Hand" ToolTip="快速選擇聯發科股票"/>
+                            <Button Content="📋已訂閱" Command="{Binding CheckWindowSubscriptionStatusCommand}" Background="#4B5563" Foreground="White" BorderBrush="#6B7280" Height="22" MinWidth="70" FontSize="14" Margin="2,0" BorderThickness="1" Padding="4,0" Cursor="Hand" ToolTip="顯示已訂閱的合約列表"/>
+                        </WrapPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- ========== 中間：Tick 資料區域 ========== -->
+            <Border Grid.Row="1" Background="{StaticResource DarkBackground}" BorderBrush="{StaticResource DarkBorder}" BorderThickness="1,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Tick 標題 -->
+                    <Border Grid.Row="0" Background="{StaticResource DarkSurface}" Padding="10,5" BorderBrush="{StaticResource DarkBorder}" BorderThickness="0,0,0,1">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="📈 即時 Tick 資料" Foreground="{StaticResource YellowColor}" FontWeight="Bold" FontSize="14"/>
+                            <CheckBox x:Name="TickDataCheckBox" Content="即時 Tick 資料" IsChecked="True" Foreground="White" Margin="20,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Tick 資料表格 -->
+                    <DataGrid Grid.Row="1" x:Name="MarketDataGrid" ItemsSource="{Binding MarketData}" Style="{StaticResource HighPerformanceDataGrid}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="時間" Binding="{Binding DateTime}" Width="232">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontFamily" Value="Consolas"/>
+                                        <Setter Property="FontSize" Value="16"/>
+                                        <Setter Property="TextAlignment" Value="Center"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- 🔥 當時的買價（快照，不會動態更新） -->
+                            <DataGridTextColumn Header="買價" Width="70">
+                                <DataGridTextColumn.Binding>
+                                    <Binding Path="BidPrice1"/>
+                                </DataGridTextColumn.Binding>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontFamily" Value="Consolas"/>
+                                        <Setter Property="FontSize" Value="16"/>
+                                        <Setter Property="TextAlignment" Value="Center"/>
+                                        <Setter Property="Foreground" Value="#4CAF50"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- 🔥 當時的賣價（快照，不會動態更新） -->
+                            <DataGridTextColumn Header="賣價" Width="70">
+                                <DataGridTextColumn.Binding>
+                                    <Binding Path="AskPrice1"/>
+                                </DataGridTextColumn.Binding>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontFamily" Value="Consolas"/>
+                                        <Setter Property="FontSize" Value="16"/>
+                                        <Setter Property="TextAlignment" Value="Center"/>
+                                        <Setter Property="Foreground" Value="#F44336"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="成交價" Width="80">
+                                <DataGridTextColumn.Binding>
+                                    <Binding Path="Close" />
+                                </DataGridTextColumn.Binding>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="單量" Width="80">
+                                <DataGridTextColumn.Binding>
+                                    <Binding Path="Volume" StringFormat="N0" />
+                                </DataGridTextColumn.Binding>
+                                <!-- 🔥 添加 ElementStyle 來設定字體顏色 -->
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontFamily" Value="Consolas"/>
+                                        <Setter Property="FontSize" Value="16"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                        <Setter Property="TextAlignment" Value="Center"/>
+                                        <!-- 🎯 根據 TickType 設定顏色 -->
+                                        <Setter Property="Foreground" Value="{Binding TickType, Converter={StaticResource NumberToColorConverter}}"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="總量" Binding="{Binding TotalVolume}" Width="80">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontFamily" Value="Consolas"/>
+                                        <Setter Property="FontSize" Value="16"/>
+                                        <Setter Property="TextAlignment" Value="Center"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+
+            <!-- 水平分隔線 -->
+            <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="{StaticResource DarkBorder}" ResizeBehavior="PreviousAndNext"/>
+
+            <!-- ========== 下方：系統訊息區域 ========== -->
+            <Border Grid.Row="3" Background="{StaticResource DarkBackground}" BorderBrush="{StaticResource DarkBorder}" BorderThickness="1,1,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 系統訊息標題列 -->
+                    <Border Grid.Row="0" Background="{StaticResource DarkSurface}" Padding="8,4" BorderBrush="{StaticResource DarkBorder}" BorderThickness="0,0,0,1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                <TextBlock Text="🖥️ 系統訊息" Foreground="{StaticResource YellowColor}" FontWeight="Bold" FontSize="14"/>
+                                <TextBlock Text="(可選取複製)" Foreground="White" FontSize="14" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button Content="🗑️ 清除" Click="ClearDebugMessages_Click" Width="70" Height="22" Margin="0,0,5,0" ToolTip="清除所有系統訊息"/>
+                                <Button Content="📋 複製" Click="CopyDebugMessages_Click" Width="70" Height="22"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- 系統訊息內容 -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Background="Black" Padding="0" x:Name="DebugScrollViewer">
+                        <TextBox x:Name="DebugTextBox" Style="{StaticResource DebugTextBoxStyle}" MinHeight="200" FontSize="14" Text="{Binding Source={x:Static services:LogService.Instance}, Path=QuoteLogsText, Mode=OneWay}" IsReadOnly="True" />
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
