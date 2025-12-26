@@ -25,6 +25,9 @@ namespace WpfApp5.ViewModels
     {
         #region 全域服務存取
         protected GlobalTimeService TimeService => App.TimeService; // 全域時間服務 - 保持非靜態以支援數據綁定
+        protected readonly LogService _logService = LogService.Instance;
+        protected readonly MarketService _marketService = MarketService.Instance;
+        protected readonly OrderPreparationService _orderPrep;
         #endregion
 
         #region 時間相關屬性
@@ -38,95 +41,53 @@ namespace WpfApp5.ViewModels
 
         #endregion
 
-        #region 共用服務實例
-
-        protected readonly LogService _logService = LogService.Instance;
-        protected readonly MarketService _marketService = MarketService.Instance;
-        protected readonly OrderPreparationService _orderPrep;
-
-        #endregion
-
-        #region 視窗管理
-
+        #region 視窗與識別
         private readonly string _windowId;
         public string WindowId => _windowId;
-
-        [ObservableProperty]
-        private bool _isWindowExpanded = false;
-
-        [ObservableProperty]
-        private bool _isLeftTopVisible = true;
-
-        [ObservableProperty]
-        private bool _isRightPanelVisible = true;
+        [ObservableProperty] private string _currentSubscribedCode = "";
+        [ObservableProperty] private bool _isWindowExpanded = false;
+        [ObservableProperty] private bool _isLeftTopVisible = true;
+        [ObservableProperty] private bool _isRightPanelVisible = true;
 
         #endregion
 
         #region 市場數據共享屬性
-
-        [ObservableProperty]
-        private string _currentSubscribedCode = "";
-
+        [ObservableProperty] private long _tickVolume;
+        [ObservableProperty] private long _totalVolume;
+        [ObservableProperty] private decimal _limitUp;
+        [ObservableProperty] private decimal _limitDown;
+        [ObservableProperty] private decimal _reference;
+        [ObservableProperty] private decimal _lastTradePrice = 0;
+        [ObservableProperty] private decimal _bestBidPrice = 0;
+        [ObservableProperty] private decimal _bestAskPrice = 0;
+        [ObservableProperty] private int _bestBidVolume;
+        [ObservableProperty] private int _bestAskVolume;
+        [ObservableProperty] private DateTime _tradeTime = DateTime.MinValue;
+        [ObservableProperty] private string _tradeDataTime = "";
         #endregion
 
-        #region 報價表格共用屬性（從 OrderBookViewModel 提取）
-
-        [ObservableProperty]
-        private string _symbol = "";
-
-        [ObservableProperty]
-        private string _code = "";
-
-        [ObservableProperty]
-        private decimal _limitUp;
-
-        [ObservableProperty]
-        private decimal _limitDown;
-
-        [ObservableProperty]
-        private decimal _reference;
-
-        [ObservableProperty]
-        private decimal _open;
-
-        [ObservableProperty]
-        private decimal _high;
-
-        [ObservableProperty]
-        private decimal _low;
-
-        [ObservableProperty]
-        private decimal _close;
-
-        [ObservableProperty]
-        private long _tickVolume;
-
-        [ObservableProperty]
-        private long _totalVolume;
-
-        [ObservableProperty]
-        private decimal _tickSize;
-
-        [ObservableProperty]
-        private ObservableCollection<PriceRowViewModel> _priceRows = [];
-
-        [ObservableProperty]
-        private decimal[] _bidPrices = [];
-
-        [ObservableProperty]
-        private decimal[] _askPrices = [];
-
-        [ObservableProperty]
-        private int _bidTotalVolume;
-
-        [ObservableProperty]
-        private int _askTotalVolume;
-
-        [ObservableProperty]
-        private long _bidSideTotalVolume;
-
-        [ObservableProperty]
-        private long _askSideTotalVolume;
+        #region 報價表格共用屬性
+        [ObservableProperty] private string _symbol = "";
+        [ObservableProperty] private string _code = "";
+        [ObservableProperty] private decimal _open;
+        [ObservableProperty] private decimal _high;
+        [ObservableProperty] private decimal _low;
+        [ObservableProperty] private decimal _close;
+        [ObservableProperty] private decimal _tickSize;
+        [ObservableProperty] private ObservableCollection<PriceRowViewModel> _priceRows = [];
+        [ObservableProperty] private decimal[] _bidPrices = [];
+        [ObservableProperty] private decimal[] _askPrices = [];
+        [ObservableProperty] private int _bidTotalVolume;
+        [ObservableProperty] private int _askTotalVolume;
+        [ObservableProperty] private long _bidSideTotalVolume;
+        [ObservableProperty] private long _askSideTotalVolume;
+        [ObservableProperty] private DateTime _timeNow = DateTime.Now;
+        [ObservableProperty] private bool _isCentered = true;
+        [ObservableProperty] private bool _isViewLocked = false;
+        [ObservableProperty] private string _securityType = "";
+        [ObservableProperty] private ViewMode _currentViewMode = ViewMode.Dynamic;
+        [ObservableProperty] private int _visibleRowsCount = 19;
+        #endregion
         #region BidAsk 五檔屬性
         [ObservableProperty] private decimal _bidPrice1 = 0;
         [ObservableProperty] private decimal _bidPrice2 = 0;
@@ -158,25 +119,6 @@ namespace WpfApp5.ViewModels
         [ObservableProperty] private int _diffAskVolume3 = 0;
         [ObservableProperty] private int _diffAskVolume4 = 0;
         [ObservableProperty] private int _diffAskVolume5 = 0;
-        #endregion
-        [ObservableProperty]
-        private DateTime _timeNow = DateTime.Now;
-
-        [ObservableProperty]
-        private bool _isCentered = true;
-
-        [ObservableProperty]
-        private bool _isViewLocked = false;
-
-        [ObservableProperty]
-        private string _securityType = "";
-
-        [ObservableProperty]
-        private ViewMode _currentViewMode = ViewMode.Dynamic;
-
-        [ObservableProperty]
-        private int _visibleRowsCount = 19;
-
         #endregion
 
         #region 報價表格共用計算屬性
@@ -298,74 +240,24 @@ namespace WpfApp5.ViewModels
         #endregion
 
         #region 即時損益（共用）
-
-        [ObservableProperty]
-        private decimal _profitLoss = 0;
-
-        [ObservableProperty]
-        private decimal _profitLossPercent = 0;
-
-        [ObservableProperty]
-        private decimal _avgCost = 0;
-
-        [ObservableProperty]
-        private long _targetPosition = 0;
-
-        [ObservableProperty]
-        private long _actualPosition = 0;
-
+        [ObservableProperty] private decimal _profitLoss = 0;
+        [ObservableProperty] private decimal _profitLossPercent = 0;
+        [ObservableProperty] private decimal _avgCost = 0;
+        [ObservableProperty] private long _targetPosition = 0;
+        [ObservableProperty] private long _actualPosition = 0;
         #endregion
 
         #region 委託單統計（共用）
-
-        [ObservableProperty]
-        private long _pendingBuyOrders = 0;  // 掛單中的買單數量（不是筆數）
-
-        [ObservableProperty]
-        private long _pendingSellOrders = 0; // 掛單中的賣單數量（不是筆數）
-        [ObservableProperty]
-        private long _pendingBuyPrice = 0;  // 掛單中的買單價格
-
-        [ObservableProperty]
-        private long _pendingSellPrice = 0;  // 掛單中的賣單價格
-
-        [ObservableProperty]
-        private long _filledBuyOrders = 0;   // 已成交的買單數量
-
-        [ObservableProperty]
-        private long _filledSellOrders = 0;  // 已成交的賣單數量
-
-        [ObservableProperty]
-        private long _totalBuyQuantity = 0;  // 已成交買單總量
-
-        [ObservableProperty]
-        private long _totalSellQuantity = 0; // 已成交賣單總量
-
-        [ObservableProperty]
-        private long _pendingBuyOrderCount = 0;  // 掛單中的買單筆數
-
-        [ObservableProperty]
-        private long _pendingSellOrderCount = 0; // 掛單中的賣單筆數
-
-        #endregion
-
-        #region 即時報價（共用）
-
-        [ObservableProperty]
-        private decimal _lastTradePrice = 0;
-
-        [ObservableProperty]
-        private decimal _bestBidPrice = 0;
-
-        [ObservableProperty]
-        private decimal _bestAskPrice = 0;
-
-        [ObservableProperty]
-        private DateTime _tradeTime = DateTime.MinValue;
-
-        [ObservableProperty]
-        private string _tradeDataTime = "";
-
+        [ObservableProperty] private long _pendingBuyOrders = 0;  // 掛單中的買單數量（不是筆數）
+        [ObservableProperty] private long _pendingSellOrders = 0; // 掛單中的賣單數量（不是筆數）
+        [ObservableProperty] private long _pendingBuyPrice = 0;  // 掛單中的買單價格
+        [ObservableProperty] private long _pendingSellPrice = 0;  // 掛單中的賣單價格
+        [ObservableProperty] private long _filledBuyOrders = 0;   // 已成交的買單數量
+        [ObservableProperty] private long _filledSellOrders = 0;  // 已成交的賣單數量
+        [ObservableProperty] private long _totalBuyQuantity = 0;  // 已成交買單總量
+        [ObservableProperty] private long _totalSellQuantity = 0; // 已成交賣單總量
+        [ObservableProperty] private long _pendingBuyOrderCount = 0;  // 掛單中的買單筆數
+        [ObservableProperty] private long _pendingSellOrderCount = 0; // 掛單中的賣單筆數
         #endregion
 
         #region 當沖和委託條件
@@ -397,15 +289,12 @@ namespace WpfApp5.ViewModels
         #region UI 顯示屬性（共用）
 
         public string DayTradeButtonText => SelectedProductType == "Stocks" ? "先賣" : "當沖";
-
         public Brush DayTradeTextColor => IsDayTradeEnabled
             ? new SolidColorBrush(Color.FromRgb(255, 215, 0))
             : new SolidColorBrush(Color.FromRgb(128, 128, 128));
-
         public Brush DayTradeBorderBrush => IsDayTradeEnabled
             ? new SolidColorBrush(Color.FromRgb(255, 215, 0))
             : new SolidColorBrush(Color.FromRgb(128, 128, 128));
-
         public string DayTradeTooltip
         {
             get
@@ -506,11 +395,11 @@ namespace WpfApp5.ViewModels
             _marketService.FOP_BidAskReceived += OnFOPBidAskReceived;
             _marketService.OrderBookInitializationRequested += OnOrderBookInitializationRequested;
 
-            
+            SubscribeToTimeService();   // 訂閱時間服務事件
             OrderService.OrderStatsUpdateRequested += OnOrderStatsUpdateRequested;  // 訂閱委託統計更新事件
             _logService.LogInfo($"[統計更新] ✅ 事件訂閱成功 - 視窗: {WindowId}", GetType().Name, LogDisplayTarget.DebugOutput);
             OrderService.Instance.WindowOrderCallback += OnWindowOrderCallback; // 訂閱共用事件
-            SubscribeToTimeService();   // 訂閱時間服務事件
+            
             _logService.LogDebug($"BaseViewModel 初始化，視窗ID: {windowId}", GetType().Name, LogDisplayTarget.DebugOutput);
             LoadAccountsFromService();  // 載入帳戶
         }
@@ -858,31 +747,20 @@ namespace WpfApp5.ViewModels
             OnFOPBidAskDataReceived(data);  // 通知子類處理
         }
 
-        private void OnOrderBookInitializationRequested(ContractInfo contractInfo, string windowId)
+        private void OnOrderBookInitializationRequested(ContractInfo contractInfo, string targetWindowId)
         {
-
-            // 🔍 詳細除錯訊息
-            _logService.LogDebug($"[DEBUG] BaseViewModel.OnOrderBookInitializationRequested 被呼叫:", GetType().Name, LogDisplayTarget.DebugOutput);
-            _logService.LogDebug($"  ├─ 當前視窗ID: {WindowId}", GetType().Name, LogDisplayTarget.DebugOutput);
-            _logService.LogDebug($"  ├─ 傳入視窗ID: {windowId}", GetType().Name, LogDisplayTarget.DebugOutput);
-            _logService.LogDebug($"  ├─ 視窗ID匹配: {windowId == WindowId}", GetType().Name, LogDisplayTarget.DebugOutput);
-            _logService.LogDebug($"  ├─ 合約代碼: {contractInfo.Code}", GetType().Name, LogDisplayTarget.DebugOutput);
-            _logService.LogDebug($"  ├─ 當前訂閱代碼: {CurrentSubscribedCode}", GetType().Name, LogDisplayTarget.DebugOutput);
-            _logService.LogDebug($"  └─ 代碼是否相同: {contractInfo.Code == CurrentSubscribedCode}", GetType().Name, LogDisplayTarget.DebugOutput);
-            _logService.LogDebug($"[DEBUG] BaseViewModel - OnOrderBookInitializationRequested: Code={contractInfo.Code}, CurrentSubscribedCode={CurrentSubscribedCode}", GetType().Name, LogDisplayTarget.DebugOutput);
-            if (windowId != WindowId)
-            {
-                _logService.LogDebug($"[DEBUG] 視窗ID不匹配，忽略請求 (請求ID: {windowId}, 當前ID: {WindowId})", GetType().Name, LogDisplayTarget.DebugOutput);
-                return;
-            }
+            // 🔒 鎖定 WindowId：只有目標視窗的 ViewModel 應該響應
+            // 這樣 MainWindow 就不會因為 QuoteWindow 的初始化而被干擾
+            // QuoteWindow 內的 QuoteViewModel 和 OrderBookViewModel 擁有相同的 WindowId，所以它們都會收到，這是正常的
+            if (targetWindowId != WindowId)
 
             try
             {
                 Application.Current.Dispatcher.Invoke(() =>
                 {
-                    CurrentSubscribedCode = contractInfo.Code;  // 更新當前訂閱的合約代碼
+                    CurrentSubscribedCode = contractInfo.Code;  // 設定此 ViewModel 現在要監聽的商品
                     _logService.LogDebug($"[DEBUG] BaseViewModel - 更新後: Code={contractInfo.Code}, CurrentSubscribedCode={CurrentSubscribedCode}", GetType().Name, LogDisplayTarget.DebugOutput);
-                    OnOrderBookInitializationDataReceived(contractInfo, windowId);  // 通知子類處理
+                    OnOrderBookInitializationDataReceived(contractInfo, targetWindowId);  // 通知子類處理
                 });
             }
             catch (Exception ex)
@@ -892,8 +770,8 @@ namespace WpfApp5.ViewModels
         }
 
         #endregion
-        #region 🚀 最終推薦：高效能通用 BidAsk 更新方法
 
+        #region 🚀 通用 BidAsk 更新方法
         /// <summary>
         /// 🎯 最高效的通用 BidAsk 更新方法
         /// 特點：
@@ -909,32 +787,27 @@ namespace WpfApp5.ViewModels
             {
                 Application.Current.Dispatcher.Invoke(() =>
                 {
-                    // 🔥 使用 dynamic 一次性存取，然後批次更新
+                    // 使用 dynamic 一次性存取，然後批次更新
                     dynamic d = data;
 
-                    // 🎯 Tuple 批次賦值 - 最高效的方式
-                    (BidPrice1, BidPrice2, BidPrice3, BidPrice4, BidPrice5) =
-                        (d.BidPrice1, d.BidPrice2, d.BidPrice3, d.BidPrice4, d.BidPrice5);
+                    // Tuple 批次賦值 - 最高效的方式
+                    (BidPrice1, BidPrice2, BidPrice3, BidPrice4, BidPrice5) = (d.BidPrice1, d.BidPrice2, d.BidPrice3, d.BidPrice4, d.BidPrice5);
 
-                    (BidVolume1, BidVolume2, BidVolume3, BidVolume4, BidVolume5) =
-                        (d.BidVolume1, d.BidVolume2, d.BidVolume3, d.BidVolume4, d.BidVolume5);
+                    (BidVolume1, BidVolume2, BidVolume3, BidVolume4, BidVolume5) = (d.BidVolume1, d.BidVolume2, d.BidVolume3, d.BidVolume4, d.BidVolume5);
 
-                    (AskPrice1, AskPrice2, AskPrice3, AskPrice4, AskPrice5) =
-                        (d.AskPrice1, d.AskPrice2, d.AskPrice3, d.AskPrice4, d.AskPrice5);
+                    (AskPrice1, AskPrice2, AskPrice3, AskPrice4, AskPrice5) = (d.AskPrice1, d.AskPrice2, d.AskPrice3, d.AskPrice4, d.AskPrice5);
 
-                    (AskVolume1, AskVolume2, AskVolume3, AskVolume4, AskVolume5) =
-                        (d.AskVolume1, d.AskVolume2, d.AskVolume3, d.AskVolume4, d.AskVolume5);
+                    (AskVolume1, AskVolume2, AskVolume3, AskVolume4, AskVolume5) = (d.AskVolume1, d.AskVolume2, d.AskVolume3, d.AskVolume4, d.AskVolume5);
 
-                    (DiffBidVolume1, DiffBidVolume2, DiffBidVolume3, DiffBidVolume4, DiffBidVolume5) =
-                        (d.DiffBidVolume1, d.DiffBidVolume2, d.DiffBidVolume3, d.DiffBidVolume4, d.DiffBidVolume5);
+                    (DiffBidVolume1, DiffBidVolume2, DiffBidVolume3, DiffBidVolume4, DiffBidVolume5) = (d.DiffBidVolume1, d.DiffBidVolume2, d.DiffBidVolume3, d.DiffBidVolume4, d.DiffBidVolume5);
 
-                    (DiffAskVolume1, DiffAskVolume2, DiffAskVolume3, DiffAskVolume4, DiffAskVolume5) =
-                        (d.DiffAskVolume1, d.DiffAskVolume2, d.DiffAskVolume3, d.DiffAskVolume4, d.DiffAskVolume5);
+                    (DiffAskVolume1, DiffAskVolume2, DiffAskVolume3, DiffAskVolume4, DiffAskVolume5) = (d.DiffAskVolume1, d.DiffAskVolume2, d.DiffAskVolume3, d.DiffAskVolume4, d.DiffAskVolume5);
 
                     (BidTotalVolume, AskTotalVolume) = (d.BidTotalVolume, d.AskTotalVolume);    // 🎯 總量更新
-
-                    // 🎯 精簡的除錯日誌
-                    //  _logService.LogDebug($"[BidAsk] {d.Code} B:{BidPrice1}({BidVolume1}) A:{AskPrice1}({AskVolume1})", GetType().Name, LogDisplayTarget.DebugOutput);
+                    BestBidPrice = BidPrice1;
+                    BestBidVolume = BidVolume1;
+                    BestAskPrice = AskPrice1;
+                    BestAskVolume = AskVolume1;
                 });
             }
             catch (Exception ex)

@@ -1,5 +1,8 @@
-﻿using System;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using HandyControl.Controls;
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -8,12 +11,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
-using CommunityToolkit.Mvvm.ComponentModel;
 using WpfApp5.Models;
 using WpfApp5.Models.MarketData;
 using WpfApp5.Services;
 using WpfApp5.Utils;
-using System.Collections.Generic;
 
 namespace WpfApp5.ViewModels
 {
@@ -157,6 +158,7 @@ namespace WpfApp5.ViewModels
 
         protected override void OnFOPTickDataReceived(FOPTickData data)
         {
+            _logService.LogDebug($"test_print data {data.Volume}", "OrderBookViewModel");
             // 使用 InvokeAsync 提升高頻環境下的效能
             Application.Current.Dispatcher.InvokeAsync(() =>
             {
@@ -905,7 +907,7 @@ namespace WpfApp5.ViewModels
 
                 Application.Current.Dispatcher.InvokeAsync(() =>
                 {
-                    var scrollViewer = FindVisualChild<ScrollViewer>(_orderBookListView);
+                    var scrollViewer = FindVisualChild<System.Windows.Controls.ScrollViewer>(_orderBookListView);
                     if (scrollViewer == null)
                     {
                         _logService.LogWarning("找不到 ScrollViewer，使用 ScrollIntoView 備用方案", "OrderBookViewModel");
