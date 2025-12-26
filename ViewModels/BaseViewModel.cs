@@ -48,7 +48,6 @@ namespace WpfApp5.ViewModels
         [ObservableProperty] private bool _isWindowExpanded = false;
         [ObservableProperty] private bool _isLeftTopVisible = true;
         [ObservableProperty] private bool _isRightPanelVisible = true;
-
         #endregion
 
         #region 市場數據共享屬性
