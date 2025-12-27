@@ -1623,32 +1623,25 @@ namespace WpfApp5.ViewModels
         {
             try
             {
-                _logService.LogInfo("開始重置 OrderBookViewModel", "QuoteViewModel", LogDisplayTarget.SourceWindow);
+                _logService.LogInfo("開始重置 OrderBookViewModel 數據", "QuoteViewModel", LogDisplayTarget.SourceWindow);
 
-                // 1. 釋放舊的 OrderBookViewModel
-                if (OrderBookViewModel is IDisposable disposable)
+                // 不再 Dispose，改為重置數據
+                if (OrderBookViewModel != null)
                 {
-                    disposable.Dispose();
+                    OrderBookViewModel.ResetState();
+                    OnPropertyChanged(nameof(OrderBookViewModel));  // 觸發屬性變更，通知 UI 重新整理摘要
+                }
+                else
+                {
+                    // 只有在真的沒有實例時才 new 一個 (保險起見)
+                    OrderBookViewModel = new OrderBookViewModel(WindowId);
                 }
 
-                // 2. 創建新的 OrderBookViewModel
-                var newOrderBookViewModel = new OrderBookViewModel(WindowId)
-                {
-                    IsCentered = IsFiveDepthCentered  // 保持當前的置中狀態
-                };
-
-                // 3. 🔧 修復：確保 UI 線程更新並觸發 ListView 重新綁定
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    OrderBookViewModel = newOrderBookViewModel;
-                    OnPropertyChanged(nameof(OrderBookViewModel)); // 確保 UI 綁定更新
-                });
-
-                _logService.LogInfo("已重置 OrderBookViewModel，ListView 將重新連接", "QuoteViewModel", LogDisplayTarget.SourceWindow);
+                _logService.LogInfo("已完成 OrderBookViewModel 數據重置 (實例已保留)", "QuoteViewModel", LogDisplayTarget.SourceWindow);
             }
             catch (Exception ex)
             {
-                _logService.LogError(ex, "重置 OrderBookViewModel 失敗", "QuoteViewModel", LogDisplayTarget.SourceWindow);
+                _logService.LogError(ex, "重置 OrderBookViewModel 失敗", "QuoteViewModel");
             }
         }
 

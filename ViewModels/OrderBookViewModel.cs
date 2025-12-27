@@ -25,6 +25,7 @@ namespace WpfApp5.ViewModels
 
         private ListView? _orderBookListView;
         private bool _isListViewInitialized = false;
+        private bool _isDataInitialized = false; // 追蹤價格行數據是否已生成
         private const double FIXED_ROW_HEIGHT = 20.0;
 
         private readonly decimal[] _lastBidPrices = new decimal[10];
@@ -234,7 +235,25 @@ namespace WpfApp5.ViewModels
         }
 
         #endregion
+        // 重置 ViewModel 狀態，而不銷毀實例，適用於切換商品檔時，清空舊有報價數據
+        public void ResetState()
+        {
+            try
+            {
+                ClearPriceRows();   // 1. 清空集合
+                _isDataInitialized = false;  // 2. 重置狀態標記，資料已清空，下次訂閱需重新初始化
+                _lastCenteredPrice = 0;
+                CurrentSubscribedCode = string.Empty;   // 3. 重置屬性
+                Symbol = "無商品";
+                LastTradePrice = 0;
 
+                _logService.LogDebug($"[重置] OrderBookViewModel 數據已清空 (WindowId: {WindowId})", "OrderBookViewModel");
+            }
+            catch (Exception ex)
+            {
+                _logService.LogError(ex, "ResetState 失敗", "OrderBookViewModel");
+            }
+        }
         #region 🚀 高效掛單更新方法（參考 OnFOPBidAskDataReceived 模式）
 
         /// <summary>
@@ -375,6 +394,7 @@ namespace WpfApp5.ViewModels
 
                 TickSize = PriceUtils.CalculatePriceTick(reference);
 
+                // 啟動非同步生成價格行
                 _ = GenerateFullPriceRowsAsync().ContinueWith(task =>
                 {
                     if (task.IsFaulted)
@@ -383,17 +403,21 @@ namespace WpfApp5.ViewModels
                     }
                     else
                     {
+                        // 🎯 資料生成成功後，切換回 UI 執行緒進行最後處理
                         Application.Current.Dispatcher.InvokeAsync(() =>
                         {
-                            // 🔥 新增：設定所有價格行的參考價格
+                            // 1. ✅ 設定資料初始化標記 (這是在 ResetState 之後重新標記為 true)
+                            _isDataInitialized = true;
+
+                            // 2. 設定所有行的參考價
                             foreach (var row in PriceRows)
                             {
                                 row.ReferencePrice = reference;
                             }
 
+                            // 3. 接下來是原有的 Timer 置中邏輯
                             int retryCount = 0;
                             const int maxRetries = 30;
-
                             System.Windows.Threading.DispatcherTimer timer = new()
                             {
                                 Interval = TimeSpan.FromMilliseconds(100)
@@ -402,11 +426,9 @@ namespace WpfApp5.ViewModels
                             timer.Tick += (s, e) =>
                             {
                                 retryCount++;
-
                                 if (_isListViewInitialized && _orderBookListView != null)
                                 {
                                     timer.Stop();
-
                                     if (_priceRowLookup.TryGetValue(reference, out var referenceRow))
                                     {
                                         _lastCenteredPrice = reference;
@@ -420,8 +442,8 @@ namespace WpfApp5.ViewModels
                                     _logService.LogWarning($"等待 ListView 初始化超時（{maxRetries * 100}ms），跳過自動置中", "OrderBookViewModel");
                                 }
                             };
-
                             timer.Start();
+
                         }, System.Windows.Threading.DispatcherPriority.Loaded);
                     }
                 }, TaskScheduler.Default);

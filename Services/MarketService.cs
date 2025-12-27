@@ -518,72 +518,41 @@ namespace WpfApp5.Services
         {
             try
             {
-                _logService.LogInfo($"開始取消視窗 {windowId} 的所有訂閱...", "MarketService", LogDisplayTarget.SourceWindow | LogDisplayTarget.DebugOutput);
+                _logService.LogInfo($"開始取消視窗 {windowId} 的所有訂閱並重置狀態...", "MarketService", LogDisplayTarget.SourceWindow | LogDisplayTarget.DebugOutput);
 
-                // 檢查 API 是否可用
-                if (!ShioajiService.IsApiLoggedIn)
-                {
-                    return ServiceResult.Failure("API 尚未登入");
-                }
+                ResetWindowOrderBookViewModel(windowId);    // 1. 執行本地 UI 重置 (觸發我們改好的數據清除模式)
 
-                // 🔧 修復：先重置 OrderBookViewModel，確保 UI 狀態清理
-                ResetWindowOrderBookViewModel(windowId);
-
-                // 獲取視窗的所有訂閱
-                var windowSubscriptions = _subscriptionManager.GetWindowSubscriptions(windowId);
+                var windowSubscriptions = _subscriptionManager.GetWindowSubscriptions(windowId);    // 2. 獲取視窗的所有訂閱紀錄並進行本地移除
                 if (windowSubscriptions.Count == 0)
                 {
-                    _logService.LogInfo($"視窗 {windowId} 沒有任何訂閱", "MarketService", LogDisplayTarget.SourceWindow | LogDisplayTarget.DebugOutput);
-                    return ServiceResult.Success("此視窗沒有任何訂閱");
+                    return ServiceResult.Success("此視窗目前沒有任何本地訂閱紀錄");
                 }
 
                 int totalUnsubscribed = 0;
-
-                // 取消每個訂閱
                 foreach (var subscription in windowSubscriptions.ToList())
                 {
-                    try
-                    {
-                        // 移除視窗訂閱
-                        _subscriptionManager.RemoveSubscription(subscription.ActualCode, windowId, subscription.QuoteType, subscription.IsOddLot);
+                    // 移除本地管理器中的紀錄
+                    _subscriptionManager.RemoveSubscription(subscription.ActualCode, windowId, subscription.QuoteType, subscription.IsOddLot);
 
-                        // 檢查是否有其他視窗仍在訂閱此合約
-                        if (!_subscriptionManager.HasOtherWindowSubscriptions(subscription.ActualCode, windowId, subscription.QuoteType, subscription.IsOddLot))
+                    // 只有當「沒有其他視窗」在使用此合約時，才嘗試呼叫 API 退訂
+                    if (!_subscriptionManager.HasOtherWindowSubscriptions(subscription.ActualCode, windowId, subscription.QuoteType, subscription.IsOddLot))
+                    {
+                        if (subscription.Contract != null)
                         {
-                            // 若沒有其他視窗訂閱，則執行取消全域訂閱
-                            if (subscription.Contract != null)
-                            {
-                                try
-                                {
-                                    ShioajiService.UnSubscribe(subscription.Contract, subscription.QuoteType,
-                                        subscription.IsOddLot, QuoteVersion.v1);
-                                    _logService.LogInfo($"已取消全域訂閱: {subscription.ActualCode}.{subscription.QuoteType}{(subscription.IsOddLot ? ".ODD" : "")}", "MarketService", LogDisplayTarget.SourceWindow | LogDisplayTarget.DebugOutput);
-                                }
-                                catch (Exception unsubEx)
-                                {
-                                    _logService.LogError(unsubEx, $"取消全域訂閱失敗: {subscription.ActualCode}.{subscription.QuoteType}", "MarketService", LogDisplayTarget.SourceWindow | LogDisplayTarget.DebugOutput);
-                                }
-                            }
+                            // 這裡 ShioajiService 內部會自行處理 Api 是否為 null 的情況
+                            ShioajiService.UnSubscribe(subscription.Contract, subscription.QuoteType, subscription.IsOddLot, QuoteVersion.v1);
+                            _logService.LogInfo($"已執行 API 退訂: {subscription.ActualCode}", "MarketService");
                         }
-
-                        totalUnsubscribed++;
                     }
-                    catch (Exception ex)
-                    {
-                        _logService.LogError(ex, $"取消訂閱 {subscription.ActualCode} 時發生錯誤: {ex.Message}", "MarketService", LogDisplayTarget.SourceWindow | LogDisplayTarget.DebugOutput);
-                    }
+                    totalUnsubscribed++;
                 }
 
-                var successMessage = $"視窗 {windowId} 已取消所有訂閱，共 {totalUnsubscribed} 個";
-                _logService.LogInfo(successMessage, "MarketService", LogDisplayTarget.SourceWindow | LogDisplayTarget.DebugOutput);
-
-                return ServiceResult.Success(successMessage);
+                return ServiceResult.Success($"視窗 {windowId} 已成功完成本地資源清理並取消 {totalUnsubscribed} 個訂閱");
             }
             catch (Exception ex)
             {
-                var errorMsg = $"取消視窗 {windowId} 的所有訂閱失敗: {ex.Message}";
-                _logService.LogError(ex, errorMsg, "MarketService", LogDisplayTarget.SourceWindow | LogDisplayTarget.DebugOutput);
-                return ServiceResult.Failure(errorMsg);
+                _logService.LogError(ex, $"取消視窗 {windowId} 的訂閱時發生異常", "MarketService");
+                return ServiceResult.Failure($"清理失敗: {ex.Message}");
             }
         }
 
@@ -1066,39 +1035,27 @@ namespace WpfApp5.Services
         {
             try
             {
-                _logService.LogDebug($"準備重置視窗 {windowId} 的 OrderBookViewModel",
-                    "MarketService", LogDisplayTarget.SourceWindow | LogDisplayTarget.DebugOutput);
+                _logService.LogDebug($"[重置觸發] 準備重置視窗 {windowId} 的 OrderBook 數據", "MarketService");
 
                 Application.Current.Dispatcher.Invoke(() =>
                 {
                     if (WindowManagerService.Instance.GetWindowById(windowId) is Views.QuoteWindow window &&
                         window.DataContext is QuoteViewModel quoteViewModel)
                     {
-                        // 🔧 修復：完整重置流程
-                        // 1. 清空當前訂閱代碼
+                        // 1. 清空商品代碼
                         quoteViewModel.CurrentSubscribedCode = "";
 
-                        // 2. 重置 OrderBookViewModel
+                        // 2. 執行我們剛改好的「不重建實例」的重置函數
                         quoteViewModel.ResetOrderBookViewModel();
 
                         // 3. 重置視窗標題
-                        var titleResetSuccess = WindowManagerService.Instance.ResetWindowTitle(windowId);
-                        if (titleResetSuccess)
-                        {
-                            _logService.LogInfo($"視窗 {windowId} 標題已重置", "MarketService", LogDisplayTarget.SourceWindow | LogDisplayTarget.DebugOutput);
-                        }
-
-                        _logService.LogInfo($"已重置視窗 {windowId} 的 OrderBookViewModel", "MarketService", LogDisplayTarget.SourceWindow | LogDisplayTarget.DebugOutput);
-                    }
-                    else
-                    {
-                        _logService.LogWarning($"無法獲取視窗 {windowId} 的 QuoteViewModel 實例", "MarketService", LogDisplayTarget.SourceWindow | LogDisplayTarget.DebugOutput);
+                        WindowManagerService.Instance.ResetWindowTitle(windowId);
                     }
                 });
             }
             catch (Exception ex)
             {
-                _logService.LogError(ex, $"重置視窗 {windowId} 的 OrderBookViewModel 失敗", "MarketService", LogDisplayTarget.SourceWindow | LogDisplayTarget.DebugOutput);
+                _logService.LogError(ex, $"重置視窗 {windowId} 的 OrderBookViewModel 失敗", "MarketService");
             }
         }
         #endregion
